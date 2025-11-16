@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>לוח בקרה - ניהול מנויים | DRVN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <style>
+        * {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .payment-row {
+            transition: background-color 0.3s;
+        }
+        
+        .payment-row:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .badge-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-confirmed {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .badge-active {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge-expired {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .badge-trial {
+            background-color: #e0e7ff;
+            color: #3730a3;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <h1 class="text-3xl font-bold text-center mb-2 text-gray-800">🔐 לוח בקרה</h1>
+            <p class="text-center text-gray-600 mb-2">מערכת ניהול מנויים - DRVN</p>
+            <p class="text-center text-red-600 text-sm font-bold mb-6">⚠️ למנהלים בלבד (للمدراء فقط)</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">אימייל מנהל</label>
+                    <input type="email" id="adminEmail" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none" placeholder="admin@drvn.com">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">סיסמה</label>
+                    <input type="password" id="adminPassword" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none" placeholder="••••••••">
+                </div>
+                
+                <button onclick="adminLogin()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition">
+                    🔓 התחבר
+                </button>
+                
+                <div id="loginError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm"></div>
+                
+                <div class="bg-blue-50 border border-blue-300 p-4 rounded text-sm text-blue-800">
+                    <p class="font-bold mb-2">💡 הערה חשובה:</p>
+                    <p>דף זה מיועד למנהלי המערכת בלבד.</p>
+                    <p class="mt-2">إذا كنت مستخدماً عادياً، الرجاء استخدام الصفحة الرئيسية.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="hidden">
+        <!-- Header -->
+        <header class="bg-white shadow-md">
+            <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">לוח בקרה - ניהול מנויים</h1>
+                    <p class="text-sm text-gray-600">מערכת ניהול מוסך DRVN</p>
+                </div>
+                <div class="text-left">
+                    <p class="text-sm text-gray-600" id="adminEmailDisplay">👤 מנהל</p>
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm mt-1">
+                        🚪 התנתק
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="container mx-auto px-4 py-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <!-- Total Users -->
+                <div class="stat-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm">סך כל המשתמשים</p>
+                            <p id="totalUsers" class="text-3xl font-bold text-gray-800">-</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <span class="text-3xl">👥</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Subscriptions -->
+                <div class="stat-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm">מנויים פעילים</p>
+                            <p id="activeSubscriptions" class="text-3xl font-bold text-green-600">-</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <span class="text-3xl">✅</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Payments -->
+                <div class="stat-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm">תשלומים ממתינים</p>
+                            <p id="pendingPayments" class="text-3xl font-bold text-amber-600">-</p>
+                        </div>
+                        <div class="bg-amber-100 p-3 rounded-full">
+                            <span class="text-3xl">⏳</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly Revenue -->
+                <div class="stat-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm">הכנסה חודשית</p>
+                            <p id="monthlyRevenue" class="text-3xl font-bold text-purple-600">-</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-full">
+                            <span class="text-3xl">💰</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white rounded-lg shadow-md mb-6">
+                <div class="border-b border-gray-200">
+                    <nav class="flex">
+                        <button onclick="switchTab('payments')" id="paymentsTab" class="tab-button px-6 py-4 font-bold text-amber-600 border-b-2 border-amber-600">
+                            💳 תשלומים
+                        </button>
+                        <button onclick="switchTab('users')" id="usersTab" class="tab-button px-6 py-4 font-bold text-gray-600 hover:text-amber-600">
+                            👥 משתמשים
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Payments Tab -->
+                <div id="paymentsContent" class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-800">רשימת תשלומים</h2>
+                        <button onclick="refreshData()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm">
+                            🔄 רענן
+                        </button>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">תאריך</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">משתמש</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">מזהה תשלום</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">סכום</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">סטטוס</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTableBody" class="divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">טוען נתונים...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Users Tab -->
+                <div id="usersContent" class="p-6 hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-800">רשימת משתמשים</h2>
+                        <div class="flex gap-2">
+                            <select id="userFilter" onchange="filterUsers()" class="border-2 border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                <option value="all">כל המשתמשים</option>
+                                <option value="active">פעילים</option>
+                                <option value="trial">ניסיון</option>
+                                <option value="expired">פג תוקף</option>
+                            </select>
+                            <button onclick="refreshData()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm">
+                                🔄 רענן
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">אימייל</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">תאריך הצטרפות</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">סטטוס מנוי</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">תוקף עד</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">ימים נותרו</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody" class="divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">טוען נתונים...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSRfJCoU6xwDych3l_3K_hBZBHOi9jVg",
+            authDomain: "garage-17263.firebaseapp.com",
+            projectId: "garage-17263",
+            storageBucket: "garage-17263.firebasestorage.app",
+            messagingSenderId: "332265903935",
+            appId: "1:332265903935:web:237c0787a161fd36a7a58a",
+            measurementId: "G-KLLCPECCDQ"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Admin emails - Only these emails can access admin panel
+        const ADMIN_EMAILS = [
+            "admin@drvn.com",
+            "h-26-7@hotmail.com"  // أضف إيميلك هنا
+        ];
+
+        let allUsers = [];
+        let allPayments = [];
+        let currentAdminUser = null;
+
+        // Check if user is already logged in
+        auth.onAuthStateChanged(async (user) => {
+            if (user && ADMIN_EMAILS.includes(user.email)) {
+                // User is logged in and is an admin
+                currentAdminUser = user;
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('adminDashboard').classList.remove('hidden');
+                loadDashboardData();
+            }
+        });
+
+        // Admin Login
+        async function adminLogin() {
+            const email = document.getElementById('adminEmail').value.trim();
+            const password = document.getElementById('adminPassword').value;
+            const errorDiv = document.getElementById('loginError');
+
+            // Check if email is in admin list
+            if (!ADMIN_EMAILS.includes(email)) {
+                errorDiv.textContent = '❌ אין לך הרשאות ניהול! (ليس لديك صلاحيات إدارة)';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                // Sign in with Firebase
+                await auth.signInWithEmailAndPassword(email, password);
+                
+                currentAdminUser = auth.currentUser;
+                
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('adminDashboard').classList.remove('hidden');
+                
+                loadDashboardData();
+            } catch (error) {
+                let errorMessage = '❌ שגיאה: ';
+                
+                if (error.code === 'auth/user-not-found') {
+                    errorMessage += 'המשתמש לא קיים במערכת';
+                } else if (error.code === 'auth/wrong-password') {
+                    errorMessage += 'סיסמה שגויה';
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage += 'אימייל לא תקין';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                errorDiv.textContent = errorMessage;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        // Logout
+        async function logout() {
+            await auth.signOut();
+            location.reload();
+        }
+
+        // Load Dashboard Data
+        async function loadDashboardData() {
+            // Display admin email
+            if (currentAdminUser) {
+                document.getElementById('adminEmailDisplay').textContent = `👤 ${currentAdminUser.email}`;
+            }
+            
+            await Promise.all([
+                loadStats(),
+                loadPayments(),
+                loadUsers()
+            ]);
+        }
+
+        // Load Statistics
+        async function loadStats() {
+            try {
+                // Get all users
+                const usersSnapshot = await db.collection('users').get();
+                const totalUsers = usersSnapshot.size;
+                
+                // Count active subscriptions
+                let activeCount = 0;
+                let monthlyRevenue = 0;
+                
+                usersSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.subscriptionStatus === 'active' && data.subscriptionEndDate && data.subscriptionEndDate.toDate) {
+                        const endDate = data.subscriptionEndDate.toDate();
+                        if (endDate > new Date()) {
+                            activeCount++;
+                            monthlyRevenue += 200; // ₪200 per subscription
+                        }
+                    }
+                });
+                
+                // Get pending payments
+                const paymentsSnapshot = await db.collection('payments')
+                    .where('status', '==', 'pending')
+                    .get();
+                const pendingCount = paymentsSnapshot.size;
+                
+                // Update UI
+                document.getElementById('totalUsers').textContent = totalUsers;
+                document.getElementById('activeSubscriptions').textContent = activeCount;
+                document.getElementById('pendingPayments').textContent = pendingCount;
+                document.getElementById('monthlyRevenue').textContent = `₪${monthlyRevenue.toLocaleString()}`;
+                
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Load Payments
+        async function loadPayments() {
+            try {
+                const snapshot = await db.collection('payments')
+                    .orderBy('createdAt', 'desc')
+                    .limit(50)
+                    .get();
+                
+                allPayments = [];
+                snapshot.forEach(doc => {
+                    allPayments.push({ id: doc.id, ...doc.data() });
+                });
+                
+                displayPayments(allPayments);
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                document.getElementById('paymentsTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-red-500">שגיאה בטעינת נתונים</td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Display Payments
+        function displayPayments(payments) {
+            const tbody = document.getElementById('paymentsTableBody');
+            
+            if (payments.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">אין תשלומים להצגה</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = payments.map(payment => {
+                const date = payment.createdAt && payment.createdAt.toDate ? 
+                    new Date(payment.createdAt.toDate()).toLocaleDateString('he-IL') : 'N/A';
+                const statusBadge = payment.status === 'pending' 
+                    ? '<span class="badge badge-pending">⏳ ממתין</span>'
+                    : payment.status === 'confirmed'
+                    ? '<span class="badge badge-confirmed">✅ אושר</span>'
+                    : '<span class="badge badge-active">🎉 פעיל</span>';
+                
+                const actions = payment.status === 'pending' || payment.status === 'confirmed'
+                    ? `<button onclick="activateSubscription('${payment.userId}', '${payment.id}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-bold">
+                        ✅ אשר והפעל
+                       </button>`
+                    : '<span class="text-gray-400 text-sm">פעיל</span>';
+                
+                return `
+                    <tr class="payment-row">
+                        <td class="px-4 py-3 text-sm text-gray-700">${date}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">${payment.userEmail || payment.userId || 'N/A'}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 font-mono">${payment.id.substring(0, 8)}...</td>
+                        <td class="px-4 py-3 text-sm font-bold text-gray-700">₪${payment.amount}</td>
+                        <td class="px-4 py-3">${statusBadge}</td>
+                        <td class="px-4 py-3">${actions}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Load Users
+        async function loadUsers() {
+            try {
+                const snapshot = await db.collection('users').get();
+                
+                allUsers = [];
+                snapshot.forEach(doc => {
+                    allUsers.push({ id: doc.id, ...doc.data() });
+                });
+                
+                displayUsers(allUsers);
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('usersTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-red-500">שגיאה בטעינת נתונים</td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Display Users
+        function displayUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            
+            if (users.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">אין משתמשים להצגה</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = users.map(user => {
+                const joinDate = user.createdAt && user.createdAt.toDate ? 
+                    new Date(user.createdAt.toDate()).toLocaleDateString('he-IL') : 'N/A';
+                const endDate = user.subscriptionEndDate && user.subscriptionEndDate.toDate ? 
+                    new Date(user.subscriptionEndDate.toDate()) : null;
+                const endDateStr = endDate ? endDate.toLocaleDateString('he-IL') : 'N/A';
+                
+                let daysLeft = 0;
+                let status = 'expired';
+                let statusBadge = '<span class="badge badge-expired">❌ פג תוקף</span>';
+                
+                if (endDate) {
+                    daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
+                    
+                    if (user.subscriptionStatus === 'active' && daysLeft > 0) {
+                        status = 'active';
+                        statusBadge = '<span class="badge badge-active">✅ פעיל</span>';
+                    } else if (user.subscriptionStatus === 'trial' && daysLeft > 0) {
+                        status = 'trial';
+                        statusBadge = '<span class="badge badge-trial">🆓 ניסיון</span>';
+                    }
+                }
+                
+                const actions = `
+                    <div class="flex gap-2">
+                        <button onclick="extendSubscription('${user.id}')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">
+                            ➕ הארך
+                        </button>
+                        <button onclick="cancelSubscription('${user.id}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-bold">
+                            ❌ בטל
+                        </button>
+                    </div>
+                `;
+                
+                return `
+                    <tr class="payment-row" data-status="${status}">
+                        <td class="px-4 py-3 text-sm text-gray-700">${user.email || user.id || 'N/A'}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">${joinDate}</td>
+                        <td class="px-4 py-3">${statusBadge}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">${endDateStr}</td>
+                        <td class="px-4 py-3 text-sm font-bold ${daysLeft > 0 ? 'text-green-600' : 'text-red-600'}">${daysLeft > 0 ? daysLeft + ' ימים' : 'פג תוקף'}</td>
+                        <td class="px-4 py-3">${actions}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Filter Users
+        function filterUsers() {
+            const filter = document.getElementById('userFilter').value;
+            
+            if (filter === 'all') {
+                displayUsers(allUsers);
+            } else {
+                const filtered = allUsers.filter(user => {
+                    const endDate = user.subscriptionEndDate ? new Date(user.subscriptionEndDate.toDate()) : null;
+                    const daysLeft = endDate ? Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+                    
+                    if (filter === 'active') {
+                        return user.subscriptionStatus === 'active' && daysLeft > 0;
+                    } else if (filter === 'trial') {
+                        return user.subscriptionStatus === 'trial' && daysLeft > 0;
+                    } else if (filter === 'expired') {
+                        return daysLeft <= 0;
+                    }
+                    return true;
+                });
+                displayUsers(filtered);
+            }
+        }
+
+        // Activate Subscription
+        async function activateSubscription(userId, paymentId) {
+            if (!confirm('האם אתה בטוח שברצונך להפעיל את המנוי?')) return;
+            
+            try {
+                const endDate = new Date();
+                endDate.setDate(endDate.getDate() + 30); // 30 days from now
+                
+                // Check if user document exists
+                const userDoc = await db.collection('users').doc(userId).get();
+                
+                if (userDoc.exists) {
+                    // Update existing user
+                    await db.collection('users').doc(userId).update({
+                        subscriptionStatus: 'active',
+                        subscriptionEndDate: firebase.firestore.Timestamp.fromDate(endDate),
+                        lastPaymentDate: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Create user document if it doesn't exist
+                    const paymentDoc = await db.collection('payments').doc(paymentId).get();
+                    const paymentData = paymentDoc.data();
+                    
+                    await db.collection('users').doc(userId).set({
+                        userId: userId,
+                        email: paymentData.userEmail || '',
+                        subscriptionStatus: 'active',
+                        subscriptionEndDate: firebase.firestore.Timestamp.fromDate(endDate),
+                        lastPaymentDate: firebase.firestore.FieldValue.serverTimestamp(),
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                
+                // Update payment status
+                await db.collection('payments').doc(paymentId).update({
+                    status: 'active',
+                    activatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                alert('✅ המנוי הופעל בהצלחה!\n\nפרטים:\n• משתמש: ' + userId + '\n• תוקף: 30 ימים');
+                refreshData();
+            } catch (error) {
+                console.error('Error activating subscription:', error);
+                alert('❌ שגיאה בהפעלת המנוי: ' + error.message);
+            }
+        }
+
+        // Extend Subscription
+        async function extendSubscription(userId) {
+            const days = prompt('כמה ימים להוסיף?', '30');
+            if (!days) return;
+            
+            const daysNum = parseInt(days);
+            if (isNaN(daysNum) || daysNum <= 0) {
+                alert('❌ מספר ימים לא תקין');
+                return;
+            }
+            
+            try {
+                const userDoc = await db.collection('users').doc(userId).get();
+                const userData = userDoc.data();
+                
+                let newEndDate;
+                if (userData.subscriptionEndDate) {
+                    const currentEndDate = userData.subscriptionEndDate.toDate();
+                    newEndDate = new Date(currentEndDate);
+                    newEndDate.setDate(newEndDate.getDate() + daysNum);
+                } else {
+                    newEndDate = new Date();
+                    newEndDate.setDate(newEndDate.getDate() + daysNum);
+                }
+                
+                await db.collection('users').doc(userId).update({
+                    subscriptionStatus: 'active',
+                    subscriptionEndDate: firebase.firestore.Timestamp.fromDate(newEndDate)
+                });
+                
+                alert(`✅ המנוי הוארך ב-${daysNum} ימים!`);
+                refreshData();
+            } catch (error) {
+                console.error('Error extending subscription:', error);
+                alert('❌ שגיאה בהארכת המנוי: ' + error.message);
+            }
+        }
+
+        // Cancel Subscription
+        async function cancelSubscription(userId) {
+            if (!confirm('האם אתה בטוח שברצונך לבטל את המנוי?')) return;
+            
+            try {
+                await db.collection('users').doc(userId).update({
+                    subscriptionStatus: 'expired',
+                    subscriptionEndDate: firebase.firestore.Timestamp.fromDate(new Date())
+                });
+                
+                alert('✅ המנוי בוטל בהצלחה!');
+                refreshData();
+            } catch (error) {
+                console.error('Error canceling subscription:', error);
+                alert('❌ שגיאה בביטול המנוי: ' + error.message);
+            }
+        }
+
+        // Switch Tab
+        function switchTab(tab) {
+            // Update tab buttons
+            document.getElementById('paymentsTab').className = 'tab-button px-6 py-4 font-bold text-gray-600 hover:text-amber-600';
+            document.getElementById('usersTab').className = 'tab-button px-6 py-4 font-bold text-gray-600 hover:text-amber-600';
+            
+            // Update content
+            document.getElementById('paymentsContent').classList.add('hidden');
+            document.getElementById('usersContent').classList.add('hidden');
+            
+            if (tab === 'payments') {
+                document.getElementById('paymentsTab').className = 'tab-button px-6 py-4 font-bold text-amber-600 border-b-2 border-amber-600';
+                document.getElementById('paymentsContent').classList.remove('hidden');
+            } else {
+                document.getElementById('usersTab').className = 'tab-button px-6 py-4 font-bold text-amber-600 border-b-2 border-amber-600';
+                document.getElementById('usersContent').classList.remove('hidden');
+            }
+        }
+
+        // Refresh Data
+        function refreshData() {
+            loadDashboardData();
+        }
+
+        // Handle Enter key in login form
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('adminPassword').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    adminLogin();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

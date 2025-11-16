@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>החשבון שלי - מערכת ניהול מוסך</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#f59e0b">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .status-active {
+            background: #10b981;
+            color: white;
+        }
+        .status-trial {
+            background: #f59e0b;
+            color: white;
+        }
+        .status-expired {
+            background: #ef4444;
+            color: white;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -100%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+            to {
+                opacity: 0;
+                transform: translate(-50%, -100%);
+            }
+        }
+    </style>
+</head>
+<body class="p-6">
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-4 border-amber-500 border-t-transparent mx-auto mb-4"></div>
+            <p class="text-white text-xl">טוען...</p>
+        </div>
+    </div>
+
+    <div class="container mx-auto max-w-4xl">
+        <!-- Header -->
+        <div class="card p-6 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button onclick="window.location.href='index.html'" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg font-bold">
+                        ← חזור למערכת
+                    </button>
+                    <h1 class="text-3xl font-bold text-gray-800">💳 החשבון שלי</h1>
+                </div>
+                <button onclick="signOut()" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold">
+                    יציאה
+                </button>
+            </div>
+        </div>
+
+        <!-- Subscription Status Card -->
+        <div class="card p-8 mb-6">
+            <h2 class="text-2xl font-bold mb-6 text-center">סטטוס מנוי</h2>
+            
+            <div class="text-center mb-6">
+                <span id="statusBadge" class="status-badge status-trial">בוחן מצב...</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- User Info -->
+                <div class="bg-gray-50 p-6 rounded-lg">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">👤</span>
+                        <div>
+                            <p class="text-sm text-gray-600">חשבון</p>
+                            <p id="userEmail" class="font-bold text-gray-800">טוען...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subscription Info -->
+                <div class="bg-gray-50 p-6 rounded-lg">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">📅</span>
+                        <div>
+                            <p class="text-sm text-gray-600">תוקף עד</p>
+                            <p id="expiryDate" class="font-bold text-gray-800">טוען...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div id="messageArea"></div>
+
+            <!-- Action Button -->
+            <div id="actionArea" class="text-center"></div>
+        </div>
+
+        <!-- Payment History -->
+        <div class="card p-8">
+            <h2 class="text-2xl font-bold mb-6">היסטוריית תשלומים</h2>
+            <div id="paymentHistory">
+                <p class="text-gray-500 text-center">טוען...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        let app, auth, db;
+        let currentUser = null;
+        let userSubscription = null;
+        
+        const PAYPAL_LINK = 'https://paypal.me/drvncars';
+        const SUBSCRIPTION_PRICE = 200; // ₪200
+        const TRIAL_DAYS = 30;
+
+        // Firebase Configuration (same as main app)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSRfJCoU6xwDych3l_3K_hBZBHOi9jVg",
+            authDomain: "garage-17263.firebaseapp.com",
+            projectId: "garage-17263",
+            storageBucket: "garage-17263.firebasestorage.app",
+            messagingSenderId: "332265903935",
+            appId: "1:332265903935:web:237c0787a161fd36a7a58a",
+            measurementId: "G-KLLCPECCDQ"
+        };
+
+        // Initialize Firebase
+        app = firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+
+        // Auth State
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                // Not logged in - redirect to login
+                window.location.href = 'login.html';
+            } else if (!user.emailVerified) {
+                // Email not verified - logout and redirect
+                alert('אנא אמת את האימייל שלך לפני שתתחבר.\nيرجى تأكيد بريدك الإلكتروني قبل تسجيل الدخول.');
+                await auth.signOut();
+                window.location.href = 'login.html';
+            } else {
+                // User authenticated and verified
+                currentUser = user;
+                document.getElementById('userEmail').textContent = user.email;
+                
+                // Setup real-time listener for subscription changes
+                setupSubscriptionListener();
+            }
+            document.getElementById('loadingScreen').classList.add('hidden');
+        });
+        
+        // Setup Real-time Subscription Listener
+        function setupSubscriptionListener() {
+            // Listen to real-time updates on user document
+            db.collection('users').doc(currentUser.uid)
+                .onSnapshot(async (doc) => {
+                    if (doc.exists) {
+                        userSubscription = doc.data();
+                        updateUI();
+                        await loadPaymentHistory();
+                        
+                        // Show notification if subscription was just activated
+                        if (userSubscription.subscriptionStatus === 'active') {
+                            const lastUpdate = userSubscription.lastPaymentDate;
+                            if (lastUpdate) {
+                                const timeSinceUpdate = new Date() - lastUpdate.toDate();
+                                // If updated in last 10 seconds, show notification
+                                if (timeSinceUpdate < 10000) {
+                                    showNotification('✅ המנוי שלך הופעל בהצלחה!', 'success');
+                                }
+                            }
+                        }
+                    } else {
+                        userSubscription = {
+                            status: 'new',
+                            trialEndDate: null,
+                            isPaid: false,
+                            subscriptionExpiry: null
+                        };
+                        updateUI();
+                    }
+                }, (error) => {
+                    console.error('Error listening to subscription:', error);
+                });
+        }
+        
+        // Show Notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-lg font-bold text-white ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 
+                'bg-blue-500'
+            }`;
+            notification.textContent = message;
+            notification.style.animation = 'slideDown 0.3s ease-out';
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideUp 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Update UI
+        function updateUI() {
+            const now = new Date();
+            const statusBadge = document.getElementById('statusBadge');
+            const expiryDate = document.getElementById('expiryDate');
+            const messageArea = document.getElementById('messageArea');
+            const actionArea = document.getElementById('actionArea');
+
+            // Check trial
+            if (userSubscription.trialEndDate) {
+                const trialEnd = new Date(userSubscription.trialEndDate);
+                const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
+
+                if (now < trialEnd) {
+                    // Active trial
+                    statusBadge.className = 'status-badge status-trial';
+                    statusBadge.textContent = `🎁 ניסיון חינם (${daysLeft} ימים נותרו)`;
+                    expiryDate.textContent = trialEnd.toLocaleDateString('he-IL');
+                    
+                    messageArea.innerHTML = `
+                        <div class="bg-blue-50 border-r-4 border-blue-500 p-4 mb-6">
+                            <p class="text-blue-800">
+                                <strong>תקופת הניסיון שלך פעילה!</strong><br>
+                                אתה יכול להשתמש בכל התכונות עד ${trialEnd.toLocaleDateString('he-IL')}.
+                            </p>
+                        </div>
+                    `;
+                    
+                    if (daysLeft <= 7) {
+                        actionArea.innerHTML = `
+                            <button onclick="initiatePayment()" class="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-bold text-xl">
+                                💳 חדש מנוי עכשיו - ₪${SUBSCRIPTION_PRICE}/חודש
+                            </button>
+                        `;
+                    }
+                    return;
+                }
+            }
+
+            // Check paid subscription
+            if (userSubscription.isPaid && userSubscription.subscriptionExpiry) {
+                const expiry = new Date(userSubscription.subscriptionExpiry);
+                const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+                if (now < expiry) {
+                    // Active subscription
+                    statusBadge.className = 'status-badge status-active';
+                    statusBadge.textContent = `✅ מנוי פעיל (${daysLeft} ימים נותרו)`;
+                    expiryDate.textContent = expiry.toLocaleDateString('he-IL');
+                    
+                    messageArea.innerHTML = `
+                        <div class="bg-green-50 border-r-4 border-green-500 p-4 mb-6">
+                            <p class="text-green-800">
+                                <strong>המנוי שלך פעיל!</strong><br>
+                                תוקף עד ${expiry.toLocaleDateString('he-IL')}.
+                            </p>
+                        </div>
+                    `;
+                    
+                    if (daysLeft <= 7) {
+                        actionArea.innerHTML = `
+                            <button onclick="initiatePayment()" class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-4 rounded-lg font-bold text-xl">
+                                🔄 חדש מנוי מראש - ₪${SUBSCRIPTION_PRICE}/חודש
+                            </button>
+                        `;
+                    }
+                    return;
+                }
+            }
+
+            // Expired
+            statusBadge.className = 'status-badge status-expired';
+            statusBadge.textContent = '⚠️ המנוי פג תוקף';
+            expiryDate.textContent = 'לא פעיל';
+            
+            messageArea.innerHTML = `
+                <div class="bg-red-50 border-r-4 border-red-500 p-4 mb-6">
+                    <p class="text-red-800">
+                        <strong>המנוי שלך פג תוקף</strong><br>
+                        אתה יכול לצפות בנתונים אבל לא להוסיף או לערוך.<br>
+                        חדש את המנוי כדי להמשיך להשתמש בכל התכונות.
+                    </p>
+                </div>
+            `;
+            
+            actionArea.innerHTML = `
+                <button onclick="initiatePayment()" class="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-bold text-xl animate-pulse">
+                    💳 חדש מנוי עכשיו - ₪${SUBSCRIPTION_PRICE}/חודש
+                </button>
+            `;
+        }
+
+        // Initiate Payment
+        async function initiatePayment() {
+            // Check if user already has a pending payment
+            try {
+                const pendingPayments = await db.collection('payments')
+                    .where('userId', '==', currentUser.uid)
+                    .where('status', 'in', ['pending', 'confirmed'])
+                    .get();
+                
+                if (!pendingPayments.empty) {
+                    alert(
+                        '⚠️ יש לך כבר בקשת תשלום פעילה!\n\n' +
+                        'אנא המתן לאישור המנהל או צור קשר לתמיכה.\n\n' +
+                        'لديك طلب دفع نشط بالفعل!\n' +
+                        'يرجى انتظار موافقة المدير أو التواصل مع الدعم.'
+                    );
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking pending payments:', error);
+            }
+            
+            const confirmed = confirm(
+                `האם אתה מוכן לשלם ₪${SUBSCRIPTION_PRICE} עבור חודש אחד?\n\n` +
+                `תועבר ל-PayPal לביצוע התשלום.\n` +
+                `לאחר התשלום, תחזור לכאן והמנוי יופעל.`
+            );
+            
+            if (!confirmed) return;
+
+            // Create payment record
+            createPaymentRecord();
+        }
+
+        // Create Payment Record
+        async function createPaymentRecord() {
+            try {
+                const paymentData = {
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    amount: SUBSCRIPTION_PRICE,
+                    currency: 'ILS',
+                    status: 'pending',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    paypalLink: PAYPAL_LINK
+                };
+
+                const paymentRef = await db.collection('payments').add(paymentData);
+                const paymentId = paymentRef.id;
+
+                // Redirect to PayPal
+                redirectToPayPal(paymentId);
+            } catch (error) {
+                console.error('Error creating payment record:', error);
+                alert('שגיאה ביצירת התשלום. אנא נסה שוב.');
+            }
+        }
+
+        // Redirect to PayPal
+        function redirectToPayPal(paymentId) {
+            // PayPal.me link with amount (200 ILS)
+            const paypalUrl = `${PAYPAL_LINK}/${SUBSCRIPTION_PRICE}ILS`;
+            
+            // Store payment ID for verification
+            localStorage.setItem('pendingPayment', paymentId);
+            
+            // Show instructions with ad blocker warning
+            alert(
+                `עכשיו תועבר ל-PayPal לתשלום.\n\n` +
+                `⚠️ חשוב: אם יש לך Ad Blocker - כבה אותו!\n` +
+                `(Ad Blocker עלול לחסום את PayPal)\n\n` +
+                `✅ לאחר השלמת התשלום:\n` +
+                `1. שלח צילום מסך של אישור התשלום ל-WhatsApp\n` +
+                `2. כתוב את מספר העסקה הזה: ${paymentId}\n` +
+                `3. המנוי שלך יופעל תוך 24 שעות\n\n` +
+                `💳 סכום: ₪${SUBSCRIPTION_PRICE}\n` +
+                `🔗 PayPal: paypal.me/drvncars\n` +
+                `🔢 מזהה תשלום: ${paymentId}`
+            );
+            
+            // Try to open PayPal
+            const paypalWindow = window.open(paypalUrl, '_blank');
+            
+            // Check if popup was blocked
+            if (!paypalWindow || paypalWindow.closed || typeof paypalWindow.closed == 'undefined') {
+                // Popup blocked - show manual link
+                alert(
+                    `⚠️ הדפדפן חסם את החלון!\n\n` +
+                    `אנא:\n` +
+                    `1. כבה את Ad Blocker\n` +
+                    `2. אפשר Pop-ups לאתר זה\n` +
+                    `3. נסה שוב\n\n` +
+                    `או העתק את הקישור הבא:\n` +
+                    `${paypalUrl}\n\n` +
+                    `מספר עסקה: ${paymentId}`
+                );
+            }
+            
+            // Show confirmation button
+            showPaymentConfirmation(paymentId);
+        }
+
+        // Show Payment Confirmation
+        function showPaymentConfirmation(paymentId) {
+            const actionArea = document.getElementById('actionArea');
+            const manualPaypalUrl = `${PAYPAL_LINK}/${SUBSCRIPTION_PRICE}ILS`;
+            
+            actionArea.innerHTML = `
+                <div class="bg-blue-50 border-2 border-blue-500 p-6 rounded-lg mb-4">
+                    <p class="text-blue-800 mb-4">
+                        <strong>האם ביצעת את התשלום ב-PayPal?</strong><br>
+                        מזהה תשלום: <code class="bg-blue-100 px-2 py-1 rounded">${paymentId}</code>
+                    </p>
+                    
+                    <div class="bg-yellow-50 border border-yellow-300 p-4 rounded-lg mb-4 text-right">
+                        <p class="text-yellow-800 text-sm mb-2">
+                            ⚠️ אם החלון לא נפתח, לחץ כאן:
+                        </p>
+                        <a href="${manualPaypalUrl}" target="_blank" class="text-blue-600 hover:text-blue-800 underline font-bold break-all text-sm">
+                            פתח PayPal ידנית →
+                        </a>
+                        <p class="text-yellow-700 text-xs mt-2">
+                            💡 טיפ: כבה Ad Blocker לפני הלחיצה
+                        </p>
+                        <p class="text-yellow-700 text-xs mt-2 font-bold">
+                            📱 חשוב: אחרי התשלום, שלח צילום מסך + מספר עסקה: ${paymentId}
+                        </p>
+                    </div>
+                    
+                    <button onclick="confirmPayment('${paymentId}')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold w-full">
+                        ✅ כן, אישרתי את התשלום
+                    </button>
+                </div>
+                <button onclick="location.reload()" class="text-gray-600 hover:text-gray-800 underline">
+                    ביטול
+                </button>
+            `;
+        }
+
+        // Confirm Payment
+        async function confirmPayment(paymentId) {
+            try {
+                await db.collection('payments').doc(paymentId).update({
+                    status: 'confirmed',
+                    confirmedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    confirmedBy: currentUser.uid
+                });
+
+                alert(
+                    `תודה! התשלום נרשם במערכת.\n\n` +
+                    `המנוי שלך יופעל תוך 24 שעות לאחר אימות התשלום על ידי המנהל.\n\n` +
+                    `תקבל הודעה לאימייל כשהמנוי יופעל.`
+                );
+
+                localStorage.removeItem('pendingPayment');
+                location.reload();
+            } catch (error) {
+                console.error('Error confirming payment:', error);
+                alert('שגיאה באישור התשלום. אנא צור קשר עם התמיכה.');
+            }
+        }
+
+        // Load Payment History
+        async function loadPaymentHistory() {
+            try {
+                const paymentsSnapshot = await db.collection('payments')
+                    .where('userId', '==', currentUser.uid)
+                    .orderBy('createdAt', 'desc')
+                    .limit(10)
+                    .get();
+
+                const historyDiv = document.getElementById('paymentHistory');
+
+                if (paymentsSnapshot.empty) {
+                    historyDiv.innerHTML = '<p class="text-gray-500 text-center">אין תשלומים עדיין</p>';
+                    return;
+                }
+
+                let html = '<div class="space-y-4">';
+                paymentsSnapshot.forEach(doc => {
+                    const payment = doc.data();
+                    const date = payment.createdAt ? payment.createdAt.toDate().toLocaleDateString('he-IL') : 'לא ידוע';
+                    const statusText = getPaymentStatusText(payment.status);
+                    const statusColor = getPaymentStatusColor(payment.status);
+
+                    html += `
+                        <div class="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
+                            <div>
+                                <p class="font-bold">₪${payment.amount}</p>
+                                <p class="text-sm text-gray-600">${date}</p>
+                            </div>
+                            <span class="px-4 py-2 rounded-full text-sm font-bold ${statusColor}">
+                                ${statusText}
+                            </span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+
+                historyDiv.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading payment history:', error);
+                document.getElementById('paymentHistory').innerHTML = 
+                    '<p class="text-red-500 text-center">שגיאה בטעינת ההיסטוריה</p>';
+            }
+        }
+
+        // Get Payment Status Text
+        function getPaymentStatusText(status) {
+            const texts = {
+                'pending': '⏳ ממתין',
+                'confirmed': '✅ אושר',
+                'approved': '🎉 מאושר ופעיל',
+                'rejected': '❌ נדחה'
+            };
+            return texts[status] || status;
+        }
+
+        // Get Payment Status Color
+        function getPaymentStatusColor(status) {
+            const colors = {
+                'pending': 'bg-yellow-100 text-yellow-800',
+                'confirmed': 'bg-blue-100 text-blue-800',
+                'approved': 'bg-green-100 text-green-800',
+                'rejected': 'bg-red-100 text-red-800'
+            };
+            return colors[status] || 'bg-gray-100 text-gray-800';
+        }
+
+        // Sign Out
+        function signOut() {
+            if (confirm('האם אתה בטוח שברצונך להתנתק?')) {
+                auth.signOut().then(() => {
+                    window.location.href = 'index.html';
+                });
+            }
+        }
+
+        // Check for pending payment on load
+        window.addEventListener('load', () => {
+            const pendingPayment = localStorage.getItem('pendingPayment');
+            const urlParams = new URLSearchParams(window.location.search);
+            const paymentParam = urlParams.get('payment');
+
+            if (pendingPayment || paymentParam) {
+                const paymentId = pendingPayment || paymentParam;
+                setTimeout(() => {
+                    const confirmed = confirm('האם השלמת את התשלום ב-PayPal?');
+                    if (confirmed) {
+                        showPaymentConfirmation(paymentId);
+                    }
+                }, 1000);
+            }
+        });
+    </script>
+</body>
+</html>
