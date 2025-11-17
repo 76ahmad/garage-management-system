@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="version" content="1.0.0">
     <title>DRVN - מערכת ניהול מוסך</title>
 
     <!-- PWA Meta Tags -->
@@ -10,10 +11,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="DRVN">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="manifest" href="manifest.json?v=1.0.0">
+    <link rel="apple-touch-icon" href="icon-192.png?v=1.0.0">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.0.0">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.0.0">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,6 +25,22 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
     <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+        
+        button, a, [onclick] {
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        
+        /* Prevent double-tap zoom on buttons */
+        button {
+            touch-action: manipulation;
+        }
+        
         :root {
             --primary: #f59e0b;
             --primary-dark: #d97706;
@@ -987,8 +1004,15 @@
 
     <!-- Car Modal -->
     <div id="carModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white rounded-lg p-6 max-w-2xl w-full my-8">
-            <h2 id="modalTitle" class="text-2xl font-bold mb-6 text-center">הוספת רכב חדש</h2>
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full my-8 relative">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="modalTitle" class="text-2xl font-bold">הוספת רכב חדש</h2>
+                <button onclick="closeCarModal()" class="text-gray-400 hover:text-gray-600 transition-colors" title="סגור">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
             
             <form id="carForm">
                 <!-- תמונת הרכב -->
@@ -1108,10 +1132,10 @@
                 </div>
                 
                 <div class="flex gap-3 mt-6">
-                    <button type="submit" class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-bold">
-                        שמור
+                    <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 font-bold shadow-lg transition-all">
+                        💾 שמור
                     </button>
-                    <button type="button" onclick="closeCarModal()" class="flex-1 bg-gray-400 text-white px-6 py-3 rounded-lg hover:bg-gray-500 font-bold">
+                    <button type="button" onclick="closeCarModal()" class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-bold transition-all">
                         ביטול
                     </button>
                 </div>
@@ -1121,8 +1145,15 @@
 
     <!-- Maintenance Modal -->
     <div id="maintenanceModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white rounded-lg p-8 max-w-xl w-full my-8">
-            <h2 class="text-2xl font-bold mb-6 text-center">הוספת טיפול</h2>
+        <div class="bg-white rounded-lg p-8 max-w-xl w-full my-8 relative">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">הוספת טיפול</h2>
+                <button onclick="closeMaintenanceModal()" class="text-gray-400 hover:text-gray-600 transition-colors" title="סגור">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
             
             <form id="maintenanceForm" class="space-y-4">
                 <!-- תאריך -->
@@ -1181,10 +1212,10 @@
                 </div>
                 
                 <div class="flex gap-3 mt-6">
-                    <button type="submit" class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-bold">
-                        הוסף טיפול
+                    <button type="submit" class="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-green-800 font-bold shadow-lg transition-all">
+                        💾 הוסף טיפול
                     </button>
-                    <button type="button" onclick="closeMaintenanceModal()" class="flex-1 bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 font-bold">
+                    <button type="button" onclick="closeMaintenanceModal()" class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-bold transition-all">
                         ביטול
                     </button>
                 </div>
@@ -2231,7 +2262,7 @@
             emptyState.classList.add('hidden');
             
             grid.innerHTML = cars.map(car => `
-                <div class="card" data-search="${car.plateNumber} ${car.ownerName || ''} ${car.phone || ''} ${car.carType || ''} ${car.model || ''} ${car.year || ''}">
+                <div class="card border-4 border-gray-800 shadow-xl" data-search="${car.plateNumber} ${car.ownerName || ''} ${car.phone || ''} ${car.carType || ''} ${car.model || ''} ${car.year || ''}">
                     ${car.imageUrl ? 
                         `<div class="relative overflow-hidden cursor-pointer group" onclick="viewCarDetails('${car.id}')">
                             <img src="${car.imageUrl}" class="car-image">
@@ -3376,6 +3407,8 @@
             // Populate car dropdown
             const carSelect = document.getElementById('appointmentCar');
             carSelect.innerHTML = '<option value="">בחר רכב...</option>';
+            
+            document.getElementById('appointmentModal').classList.remove('hidden');
             
             cars.forEach(car => {
                 const option = document.createElement('option');
@@ -4890,21 +4923,47 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Service Worker disabled to avoid CORS issues
-// You can enable it by creating service-worker.js file
-/*
+// Service Worker for PWA with auto-update
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('service-worker.js')
             .then(registration => {
-                console.log('✅ Service Worker registered successfully:', registration.scope);
+                console.log('✅ Service Worker registered');
+                
+                // Check for updates every 30 seconds
+                setInterval(() => {
+                    registration.update();
+                }, 30000);
+                
+                // Listen for updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // New version available
+                            if (confirm('גרסה חדשה זמינה! לרענן את האפליקציה?')) {
+                                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                window.location.reload();
+                            }
+                        }
+                    });
+                });
             })
             .catch(error => {
                 console.log('❌ Service Worker registration failed:', error);
             });
+        
+        // Reload page when new service worker takes control
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                window.location.reload();
+                refreshing = true;
+            }
+        });
     });
 }
-*/
 
 // Show Account Modal
 function showAccountModal() {

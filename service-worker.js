@@ -1,5 +1,5 @@
 // Service Worker for Garage Management System PWA
-const CACHE_NAME = 'garage-system-v1';
+const CACHE_NAME = 'garage-system-v9'; // ⬅️ غير هذا الرقم مع كل تحديث (v2, v3, v4...)
 const urlsToCache = [
   './',
   './index.html',
@@ -81,11 +81,11 @@ self.addEventListener('fetch', event => {
         }).catch(error => {
           console.error('[Service Worker] Fetch failed:', error);
           // You can return a custom offline page here
-          return new Response('Offline - Please check your connection', {
+          return new Response('אין חיבור לאינטרנט - אנא בדוק את החיבור שלך', {
             status: 503,
             statusText: 'Service Unavailable',
             headers: new Headers({
-              'Content-Type': 'text/plain'
+              'Content-Type': 'text/plain; charset=utf-8'
             })
           });
         });
@@ -115,7 +115,7 @@ async function syncCarsData() {
 // Push notification handler (optional)
 self.addEventListener('push', event => {
   const options = {
-    body: event.data ? event.data.text() : 'New update available',
+    body: event.data ? event.data.text() : 'עדכון חדש זמין',
     icon: './icon-192.png',
     badge: './icon-72.png',
     vibrate: [200, 100, 200],
@@ -134,4 +134,11 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil(
     clients.openWindow('./')
   );
+});
+
+// Listen for skip waiting message
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
