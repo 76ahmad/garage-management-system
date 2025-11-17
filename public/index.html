@@ -1356,6 +1356,37 @@
                 </button>
             </div>
         </div>
+        
+        <!-- Mobile Bottom Navigation -->
+        <nav class="mobile-bottom-nav">
+            <div class="mobile-bottom-nav-container">
+                <div class="nav-item active" id="navHome" onclick="scrollToTop()">
+                    <div class="nav-item-icon">🏠</div>
+                    <div class="nav-item-label">בית</div>
+                </div>
+                <div class="nav-item" id="navDashboard" onclick="openDashboard()">
+                    <div class="nav-item-icon">📊</div>
+                    <div class="nav-item-label">לוח בקרה</div>
+                </div>
+                <div class="nav-item" id="navCalendar" onclick="openCalendarModal()">
+                    <div class="nav-item-icon">📅</div>
+                    <div class="nav-item-label">יומן</div>
+                </div>
+                <div class="nav-item" id="navBackup" onclick="openBackupModal()">
+                    <div class="nav-item-icon">💾</div>
+                    <div class="nav-item-label">גיבוי</div>
+                </div>
+                <div class="nav-item" id="navAccount" onclick="showAccountModal()">
+                    <div class="nav-item-icon">👤</div>
+                    <div class="nav-item-label">חשבון</div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Floating Action Button -->
+        <button class="fab-button" onclick="openCarModal()" title="הוסף רכב">
+            ➕
+        </button>
     </div>
 
     <!-- Car Modal -->
@@ -3618,7 +3649,14 @@
         // Sign Out
         async function signOut() {
             if (confirm('האם לצאת מהמערכת?')) {
-                await auth.signOut();
+                try {
+                    await auth.signOut();
+                    // التوجيه إلى صفحة تسجيل الدخول
+                    window.location.href = 'login.html';
+                } catch (error) {
+                    console.error('Error signing out:', error);
+                    alert('حدث خطأ أثناء تسجيل الخروج');
+                }
             }
         }
 
@@ -5629,37 +5667,6 @@ function closeAccountModal() {
             </div>
         </div>
     </div>
-
-    <!-- Mobile Bottom Navigation -->
-    <nav class="mobile-bottom-nav">
-        <div class="mobile-bottom-nav-container">
-            <div class="nav-item active" id="navHome" onclick="scrollToTop()">
-                <div class="nav-item-icon">🏠</div>
-                <div class="nav-item-label">בית</div>
-            </div>
-            <div class="nav-item" id="navDashboard" onclick="openDashboard()">
-                <div class="nav-item-icon">📊</div>
-                <div class="nav-item-label">לוח בקרה</div>
-            </div>
-            <div class="nav-item" id="navCalendar" onclick="openCalendarModal()">
-                <div class="nav-item-icon">📅</div>
-                <div class="nav-item-label">יומן</div>
-            </div>
-            <div class="nav-item" id="navBackup" onclick="openBackupModal()">
-                <div class="nav-item-icon">💾</div>
-                <div class="nav-item-label">גיבוי</div>
-            </div>
-            <div class="nav-item" id="navAccount" onclick="showAccountModal()">
-                <div class="nav-item-icon">👤</div>
-                <div class="nav-item-label">חשבון</div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Floating Action Button -->
-    <button class="fab-button" onclick="openCarModal()" title="הוסף רכב">
-        ➕
-    </button>
 
     <script>
         // Close all modals function
