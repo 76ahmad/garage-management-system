@@ -634,147 +634,6 @@
             }
         }
         
-        /* Side Menu Styles */
-        .menu-button {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1001;
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
-            background: var(--primary);
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: var(--shadow-lg);
-            transition: all 0.3s ease;
-        }
-        
-        .menu-button:hover {
-            background: var(--primary-dark);
-            transform: scale(1.05);
-        }
-        
-        .menu-button:active {
-            transform: scale(0.95);
-        }
-        
-        .hamburger {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            width: 24px;
-        }
-        
-        .hamburger span {
-            width: 100%;
-            height: 3px;
-            background: white;
-            border-radius: 2px;
-            transition: all 0.3s ease;
-        }
-        
-        .menu-button.active .hamburger span:nth-child(1) {
-            transform: rotate(45deg) translate(7px, 7px);
-        }
-        
-        .menu-button.active .hamburger span:nth-child(2) {
-            opacity: 0;
-        }
-        
-        .menu-button.active .hamburger span:nth-child(3) {
-            transform: rotate(-45deg) translate(7px, -7px);
-        }
-        
-        .side-menu {
-            position: fixed;
-            top: 0;
-            left: -320px;
-            width: 320px;
-            height: 100vh;
-            background: var(--bg-secondary);
-            box-shadow: var(--shadow-xl);
-            z-index: 1000;
-            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow-y: auto;
-            padding-top: 80px;
-        }
-        
-        .side-menu.active {
-            left: 0;
-        }
-        
-        .menu-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-        
-        .menu-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        .menu-item {
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border-right: 4px solid transparent;
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        
-        .menu-item:hover {
-            background: var(--bg-tertiary);
-            border-right-color: var(--primary);
-        }
-        
-        .menu-item:active {
-            transform: scale(0.98);
-        }
-        
-        .menu-item-icon {
-            font-size: 24px;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .menu-divider {
-            height: 1px;
-            background: var(--border-color);
-            margin: 8px 16px;
-        }
-        
-        .menu-header {
-            padding: 16px 24px;
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        /* Hide header buttons on desktop */
-        .header-actions {
-            display: none !important;
-        }
-
         /* Loading Animation */
         .loader {
             width: 60px;
@@ -1161,49 +1020,6 @@
 
 </head>
 <body class="bg-gray-100 min-h-screen">
-
-    <!-- Menu Button (Hamburger) -->
-    <button class="menu-button" onclick="toggleMenu()" id="menuButton">
-        <div class="hamburger">
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
-    </button>
-
-    <!-- Menu Overlay -->
-    <div class="menu-overlay" onclick="closeMenu()" id="menuOverlay"></div>
-
-    <!-- Side Menu -->
-    <div class="side-menu" id="sideMenu">
-        <div class="menu-header">תפריט</div>
-        
-        <div class="menu-item" onclick="toggleThemeFromMenu()">
-            <div class="menu-item-icon">
-                <span id="menuThemeIcon">☀️</span>
-            </div>
-            <span id="menuThemeText">מצב לילה</span>
-        </div>
-        
-        <div class="menu-divider"></div>
-        
-        <div class="menu-item" onclick="showAccountModalFromMenu()">
-            <div class="menu-item-icon">💳</div>
-            <span>החשבון שלי</span>
-        </div>
-        
-        <div class="menu-item" onclick="editUserNameFromMenu()">
-            <div class="menu-item-icon">✏️</div>
-            <span>ערוך שם משתמש</span>
-        </div>
-        
-        <div class="menu-divider"></div>
-        
-        <div class="menu-item" onclick="signOutFromMenu()">
-            <div class="menu-item-icon">🚪</div>
-            <span>יציאה</span>
-        </div>
-    </div>
 
     <!-- Loading Screen -->
     <div id="loadingScreen" class="loading-screen fixed inset-0 z-50 flex items-center justify-center">
@@ -2106,12 +1922,6 @@
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
             updateThemeIcon(savedTheme);
-            // Update menu icon after a short delay to ensure DOM is ready
-            setTimeout(() => {
-                if (typeof updateMenuThemeIcon === 'function') {
-                    updateMenuThemeIcon();
-                }
-            }, 100);
         }
         
         // Toggle theme
@@ -2122,7 +1932,6 @@
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
             updateThemeIcon(newTheme);
-            updateMenuThemeIcon(); // Update menu icon too
             
             // Show notification
             const message = newTheme === 'dark' ? 'הופעל מצב לילה 🌙' : 'הופעל מצב יום ☀️';
@@ -5495,112 +5304,8 @@ function closeAccountModal() {
     </button>
 
     <script>
-        // Close all modals - دالة لإغلاق جميع النوافذ المنبثقة
-        function closeAllModals() {
-            // Close all modals
-            const allModals = [
-                'dashboardModal',
-                'calendarModal',
-                'backupModal',
-                'accountModal',
-                'carModal',
-                'carSelectorModal',
-                'appointmentModal',
-                'maintenanceModal',
-                'imageModal',
-                'pdfModal'
-            ];
-            
-            allModals.forEach(modalId => {
-                const modal = document.getElementById(modalId);
-                if (modal && !modal.classList.contains('hidden')) {
-                    modal.classList.add('hidden');
-                }
-            });
-            
-            // Reset active nav to home
-            document.querySelectorAll('.nav-item').forEach((item, index) => {
-                if (index === 0) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
-            });
-        }
-        
-        // Alias for backward compatibility
-        const closeAllPages = closeAllModals;
-        
-        // ==========================================
-        // SIDE MENU FUNCTIONS
-        // ==========================================
-        
-        function toggleMenu() {
-            const menu = document.getElementById('sideMenu');
-            const overlay = document.getElementById('menuOverlay');
-            const button = document.getElementById('menuButton');
-            
-            menu.classList.toggle('active');
-            overlay.classList.toggle('active');
-            button.classList.toggle('active');
-        }
-        
-        function closeMenu() {
-            const menu = document.getElementById('sideMenu');
-            const overlay = document.getElementById('menuOverlay');
-            const button = document.getElementById('menuButton');
-            
-            menu.classList.remove('active');
-            overlay.classList.remove('active');
-            button.classList.remove('active');
-        }
-        
-        function toggleThemeFromMenu() {
-            toggleTheme();
-            updateMenuThemeIcon();
-        }
-        
-        function updateMenuThemeIcon() {
-            const theme = document.documentElement.getAttribute('data-theme');
-            const menuIcon = document.getElementById('menuThemeIcon');
-            const menuText = document.getElementById('menuThemeText');
-            
-            if (theme === 'dark') {
-                menuIcon.textContent = '🌙';
-                menuText.textContent = 'מצב יום';
-            } else {
-                menuIcon.textContent = '☀️';
-                menuText.textContent = 'מצב לילה';
-            }
-        }
-        
-        function showAccountModalFromMenu() {
-            closeMenu();
-            setTimeout(() => showAccountModal(), 300);
-        }
-        
-        function editUserNameFromMenu() {
-            closeMenu();
-            setTimeout(() => editUserName(), 300);
-        }
-        
-        function signOutFromMenu() {
-            closeMenu();
-            setTimeout(() => signOut(), 300);
-        }
-        
-        // Update menu theme icon on page load
-        window.addEventListener('load', function() {
-            updateMenuThemeIcon();
-        });
-        
-        // ==========================================
-        // NAVIGATION FUNCTIONS
-        // ==========================================
-        
         // Scroll to top function
         function scrollToTop() {
-            closeAllModals(); // Close all open pages first
             window.scrollTo({ top: 0, behavior: 'smooth' });
             // Update active state
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
@@ -5613,25 +5318,6 @@ function closeAccountModal() {
                 item.classList.toggle('active', i === index);
             });
         }
-        
-        // Handle Android back button
-        document.addEventListener('backbutton', function(e) {
-            e.preventDefault();
-            closeAllModals();
-        }, false);
-        
-        // Handle browser back button
-        window.addEventListener('popstate', function(e) {
-            closeAllModals();
-        });
-        
-        // Add escape key to close all modals and menu
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                closeMenu();
-                closeAllModals();
-            }
-        });
     </script>
 
 </body>
