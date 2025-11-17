@@ -235,13 +235,14 @@
         
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
-            .logo-badge {
-                width: 48px;
-                height: 48px;
+            /* Hide desktop header buttons on mobile */
+            .header-buttons {
+                display: none !important;
             }
             
-            .logo-badge span {
-                font-size: 1.5rem;
+            /* Mobile Header Compact */
+            .app-header .container {
+                padding: 0.75rem 1rem;
             }
             
             .app-header h1 {
@@ -250,6 +251,30 @@
             
             .app-header p {
                 font-size: 0.75rem;
+            }
+            
+            /* Mobile Bottom Navigation */
+            .mobile-bottom-nav {
+                display: flex !important;
+            }
+            
+            /* FAB Button */
+            .fab-button {
+                display: flex !important;
+            }
+            
+            /* Add padding for bottom nav */
+            #mainApp {
+                padding-bottom: 80px;
+            }
+            
+            .logo-badge {
+                width: 48px;
+                height: 48px;
+            }
+            
+            .logo-badge span {
+                font-size: 1.5rem;
             }
             
             .user-badge {
@@ -294,6 +319,139 @@
             
             .card .info-item {
                 font-size: 0.8rem;
+            }
+        }
+        
+        /* Mobile Bottom Navigation Bar */
+        .mobile-bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
+            backdrop-filter: blur(10px);
+            border-top: 2px solid #e5e7eb;
+            padding: 0.5rem 0;
+            z-index: 1000;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+        }
+        
+        [data-theme="dark"] .mobile-bottom-nav {
+            background: linear-gradient(to top, rgba(30,41,59,0.98), rgba(30,41,59,0.95));
+            border-top-color: #475569;
+        }
+        
+        .mobile-bottom-nav-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 12px;
+            min-width: 60px;
+        }
+        
+        .nav-item:active {
+            transform: scale(0.95);
+            background: rgba(245,158,11,0.1);
+        }
+        
+        .nav-item-icon {
+            font-size: 1.5rem;
+            transition: transform 0.2s;
+        }
+        
+        .nav-item.active .nav-item-icon {
+            transform: scale(1.2);
+        }
+        
+        .nav-item-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #64748b;
+            transition: color 0.2s;
+        }
+        
+        [data-theme="dark"] .nav-item-label {
+            color: #94a3b8;
+        }
+        
+        .nav-item.active .nav-item-label {
+            color: #f59e0b;
+        }
+        
+        /* Floating Action Button */
+        .fab-button {
+            display: none;
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            border-radius: 50%;
+            box-shadow: 0 8px 24px rgba(245,158,11,0.4);
+            cursor: pointer;
+            z-index: 999;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            transition: all 0.3s;
+        }
+        
+        .fab-button:active {
+            transform: scale(0.9);
+        }
+        
+        .fab-button:hover {
+            box-shadow: 0 12px 32px rgba(245,158,11,0.5);
+            transform: scale(1.05);
+        }
+        
+        /* Mobile Quick Actions */
+        .mobile-quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        .quick-action-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .quick-action-btn:active {
+            transform: scale(0.95);
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-quick-actions {
+                display: none;
             }
         }
         
@@ -2323,6 +2481,18 @@
                             ${car.model ? `<div class="info-item"><span class="text-base">📋</span><span>${car.model}</span></div>` : ''}
                             ${car.year ? `<div class="info-item"><span class="text-base">📅</span><span>${car.year}</span></div>` : ''}
                         </div>
+                        
+                        <!-- Quick Actions for Mobile -->
+                        ${car.phone ? `
+                        <div class="mobile-quick-actions">
+                            <a href="tel:${car.phone}" class="quick-action-btn bg-green-500 hover:bg-green-600">
+                                📞 <span class="hidden sm:inline">התקשר</span>
+                            </a>
+                            <a href="https://wa.me/972${car.phone.replace(/^0/, '')}" target="_blank" class="quick-action-btn bg-emerald-500 hover:bg-emerald-600">
+                                💬 <span class="hidden sm:inline">WhatsApp</span>
+                            </a>
+                        </div>
+                        ` : ''}
                         
                         <div class="space-y-2.5">
                             <div class="grid grid-cols-3 gap-2">
@@ -5101,6 +5271,128 @@ function closeAccountModal() {
             </div>
         </div>
     </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        <div class="mobile-bottom-nav-container">
+            <div class="nav-item active" onclick="scrollToTop()">
+                <div class="nav-item-icon">🏠</div>
+                <div class="nav-item-label">בית</div>
+            </div>
+            <div class="nav-item" onclick="openDashboard()">
+                <div class="nav-item-icon">📊</div>
+                <div class="nav-item-label">לוח בקרה</div>
+            </div>
+            <div class="nav-item" onclick="openCalendarModal()">
+                <div class="nav-item-icon">📅</div>
+                <div class="nav-item-label">יומן</div>
+            </div>
+            <div class="nav-item" onclick="openBackupModal()">
+                <div class="nav-item-icon">💾</div>
+                <div class="nav-item-label">גיבוי</div>
+            </div>
+            <div class="nav-item" onclick="showAccountModal()">
+                <div class="nav-item-icon">👤</div>
+                <div class="nav-item-label">חשבון</div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Floating Action Button -->
+    <button class="fab-button" onclick="openCarModal()" title="הוסף רכב">
+        ➕
+    </button>
+
+    <script>
+        // Close all modals and pages
+        function closeAllPages() {
+            // Close all modals
+            const allModals = [
+                'dashboardModal',
+                'calendarModal',
+                'backupModal',
+                'accountModal',
+                'carModal',
+                'carSelectorModal',
+                'appointmentModal',
+                'maintenanceModal',
+                'imageModal'
+            ];
+            
+            allModals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (modal && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                }
+            });
+            
+            // Reset active nav to home
+            document.querySelectorAll('.nav-item').forEach((item, index) => {
+                if (index === 0) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+        
+        // Scroll to top function
+        function scrollToTop() {
+            closeAllPages(); // Close all open pages first
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Update active state
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+        
+        // Update active nav item
+        function updateActiveNav(index) {
+            document.querySelectorAll('.nav-item').forEach((item, i) => {
+                item.classList.toggle('active', i === index);
+            });
+        }
+        
+        // Override all modal open functions to close other pages first
+        const originalOpenDashboard = window.openDashboard;
+        window.openDashboard = function() {
+            closeAllPages();
+            if (originalOpenDashboard) originalOpenDashboard();
+            updateActiveNav(1);
+        };
+        
+        const originalOpenCalendarModal = window.openCalendarModal;
+        window.openCalendarModal = function() {
+            closeAllPages();
+            if (originalOpenCalendarModal) originalOpenCalendarModal();
+            updateActiveNav(2);
+        };
+        
+        const originalOpenBackupModal = window.openBackupModal;
+        window.openBackupModal = function() {
+            closeAllPages();
+            if (originalOpenBackupModal) originalOpenBackupModal();
+            updateActiveNav(3);
+        };
+        
+        const originalShowAccountModal = window.showAccountModal;
+        window.showAccountModal = function() {
+            closeAllPages();
+            if (originalShowAccountModal) originalShowAccountModal();
+            updateActiveNav(4);
+        };
+        
+        // Add back button listener for mobile
+        window.addEventListener('popstate', function(event) {
+            closeAllPages();
+        });
+        
+        // Add escape key to close all
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeAllPages();
+            }
+        });
+    </script>
 
 </body>
 </html>
