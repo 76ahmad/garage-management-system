@@ -919,6 +919,12 @@
                                 <span id="themeIcon">☀️</span>
                             </div>
                         </div>
+                        
+                        <!-- Subscription Days Counter -->
+                        <div id="daysCounter" class="hidden bg-green-500 text-white px-4 py-2 rounded-lg font-bold">
+                            <span id="daysLeft">0</span> ימים
+                        </div>
+                        
                         <button onclick="showAccountModal()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition">
                             💳 החשבון שלי
                         </button>
@@ -1959,6 +1965,9 @@
                 // Check subscription status
                 await checkSubscriptionStatus();
                 
+                // Setup realtime listener for subscription changes
+                setupSubscriptionListener();
+                
                 await loadUserName();
                 loadCars();
                 loadAppointments();
@@ -2004,33 +2013,102 @@
                     isSubscriptionActive = true;
                 } else {
                     userSubscription = userDoc.data();
-                    const now = new Date();
-                    
-                    // Check if trial period
-                    if (userSubscription.trialEndDate) {
-                        const trialEnd = new Date(userSubscription.trialEndDate);
-                        if (now < trialEnd) {
-                            isSubscriptionActive = true;
-                            return;
-                        }
-                    }
-                    
-                    // Check if paid subscription
-                    if (userSubscription.isPaid && userSubscription.subscriptionExpiry) {
-                        const expiry = new Date(userSubscription.subscriptionExpiry);
-                        if (now < expiry) {
-                            isSubscriptionActive = true;
-                            return;
-                        }
-                    }
-                    
-                    // Subscription expired
-                    isSubscriptionActive = false;
+                    updateSubscriptionStatus();
                 }
             } catch (error) {
                 console.error('Error checking subscription:', error);
                 isSubscriptionActive = false;
             }
+        }
+        
+        // Update subscription status from userSubscription data
+        function updateSubscriptionStatus() {
+            const now = new Date();
+            isSubscriptionActive = false;
+            let endDate = null;
+            
+            // Check if trial period
+            if (userSubscription.trialEndDate) {
+                const trialEnd = new Date(userSubscription.trialEndDate);
+                if (now < trialEnd) {
+                    isSubscriptionActive = true;
+                    endDate = trialEnd;
+                }
+            }
+            
+            // Check if paid subscription
+            if (userSubscription.isPaid && userSubscription.subscriptionExpiry) {
+                const expiry = new Date(userSubscription.subscriptionExpiry);
+                if (now < expiry) {
+                    isSubscriptionActive = true;
+                    endDate = expiry;
+                }
+            }
+            
+            // Check subscriptionEndDate from admin
+            if (userSubscription.subscriptionEndDate) {
+                let adminEndDate;
+                if (userSubscription.subscriptionEndDate.toDate) {
+                    adminEndDate = userSubscription.subscriptionEndDate.toDate();
+                } else {
+                    adminEndDate = new Date(userSubscription.subscriptionEndDate);
+                }
+                
+                if (now < adminEndDate) {
+                    isSubscriptionActive = true;
+                    endDate = adminEndDate;
+                }
+            }
+            
+            // Update days counter in header
+            updateDaysCounter(endDate);
+        }
+        
+        // Update days counter display
+        function updateDaysCounter(endDate) {
+            const counter = document.getElementById('daysCounter');
+            const daysLeftSpan = document.getElementById('daysLeft');
+            
+            if (!counter || !daysLeftSpan) return;
+            
+            if (endDate) {
+                const now = new Date();
+                const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+                
+                if (daysLeft > 0) {
+                    daysLeftSpan.textContent = daysLeft;
+                    counter.classList.remove('hidden');
+                    
+                    // Change color based on days left
+                    counter.classList.remove('bg-green-500', 'bg-yellow-500', 'bg-red-500');
+                    if (daysLeft > 7) {
+                        counter.classList.add('bg-green-500');
+                    } else if (daysLeft > 3) {
+                        counter.classList.add('bg-yellow-500');
+                    } else {
+                        counter.classList.add('bg-red-500');
+                    }
+                } else {
+                    counter.classList.add('hidden');
+                }
+            } else {
+                counter.classList.add('hidden');
+            }
+        }
+        
+        // Setup realtime subscription listener
+        function setupSubscriptionListener() {
+            if (!currentUser) return;
+            
+            db.collection('users').doc(currentUser.uid).onSnapshot((doc) => {
+                if (doc.exists) {
+                    userSubscription = doc.data();
+                    updateSubscriptionStatus();
+                    showSubscriptionBanner();
+                }
+            }, (error) => {
+                console.error('Subscription listener error:', error);
+            });
         }
         
         // Show Subscription Banner
