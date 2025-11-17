@@ -335,6 +335,8 @@
             padding: 0.5rem 0;
             z-index: 1000;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            transform: translateY(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         [data-theme="dark"] .mobile-bottom-nav {
@@ -410,11 +412,12 @@
             justify-content: center;
             font-size: 2rem;
             color: white;
-            transition: all 0.3s;
+            transform: translateY(0);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .fab-button:active {
-            transform: scale(0.9);
+            transform: scale(0.9) translateY(0);
         }
         
         .fab-button:hover {
@@ -3774,14 +3777,26 @@
 
         // Open Calendar Modal
         async function openCalendarModal() {
+            // إغلاق السايد بار إذا كان مفتوحاً
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && sidebar.classList.contains('open')) {
+                toggleSidebar();
+            }
+            // إغلاق جميع الـ modals المفتوحة أولاً
+            closeAllModals();
+            // فتح اليومن
             document.getElementById('calendarModal').classList.remove('hidden');
             await loadAppointments(); // Reload appointments
             renderCalendar();
+            // تحديث حالة النافيجيشن
+            updateActiveNav(2);
         }
 
         // Close Calendar Modal
         function closeCalendarModal() {
             document.getElementById('calendarModal').classList.add('hidden');
+            // العودة إلى حالة البيت في النافيجيشن
+            updateActiveNav(0);
         }
 
         // Open Appointment Modal
@@ -4163,13 +4178,25 @@
 
         // Open Dashboard
         function openDashboard() {
+            // إغلاق السايد بار إذا كان مفتوحاً
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && sidebar.classList.contains('open')) {
+                toggleSidebar();
+            }
+            // إغلاق جميع الـ modals المفتوحة أولاً
+            closeAllModals();
+            // فتح لوح البكرة
             document.getElementById('dashboardModal').classList.remove('hidden');
             renderDashboard();
+            // تحديث حالة النافيجيشن
+            updateActiveNav(1);
         }
 
         // Close Dashboard
         function closeDashboard() {
             document.getElementById('dashboardModal').classList.add('hidden');
+            // العودة إلى حالة البيت في النافيجيشن
+            updateActiveNav(0);
         }
 
         // Render Dashboard
@@ -4708,13 +4735,25 @@
 
         // Open Backup Modal
         function openBackupModal() {
+            // إغلاق السايد بار إذا كان مفتوحاً
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && sidebar.classList.contains('open')) {
+                toggleSidebar();
+            }
+            // إغلاق جميع الـ modals المفتوحة أولاً
+            closeAllModals();
+            // فتح نافذة النسخ الاحتياطي
             document.getElementById('backupModal').classList.remove('hidden');
             updateBackupInfo();
+            // تحديث حالة النافيجيشن
+            updateActiveNav(3);
         }
 
         // Close Backup Modal
         function closeBackupModal() {
             document.getElementById('backupModal').classList.add('hidden');
+            // العودة إلى حالة البيت في النافيجيشن
+            updateActiveNav(0);
         }
 
         // Update Backup Info
@@ -5354,21 +5393,43 @@ if ('serviceWorker' in navigator) {
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
+    const bottomNav = document.querySelector('.mobile-bottom-nav');
+    const fabButton = document.querySelector('.fab-button');
     
     if (sidebar && overlay) {
         sidebar.classList.toggle('open');
         overlay.classList.toggle('active');
         
         if (sidebar.classList.contains('open')) {
+            // عند فتح السايد بار
             document.body.classList.add('sidebar-open');
             document.body.style.overflow = 'hidden';
             document.body.style.position = 'fixed';
             document.body.style.width = '100%';
+            
+            // إخفاء شريط التنقل السفلي وزر FAB
+            if (bottomNav) {
+                bottomNav.style.transform = 'translateY(100%)';
+                bottomNav.style.transition = 'transform 0.3s ease';
+            }
+            if (fabButton) {
+                fabButton.style.transform = 'translateY(200%)';
+                fabButton.style.transition = 'transform 0.3s ease';
+            }
         } else {
+            // عند إغلاق السايد بار
             document.body.classList.remove('sidebar-open');
             document.body.style.overflow = '';
             document.body.style.position = '';
             document.body.style.width = '';
+            
+            // إظهار شريط التنقل السفلي وزر FAB
+            if (bottomNav) {
+                bottomNav.style.transform = 'translateY(0)';
+            }
+            if (fabButton) {
+                fabButton.style.transform = 'translateY(0)';
+            }
         }
     }
 }
@@ -5427,11 +5488,22 @@ window.addEventListener('load', function() {
 
 // Show Account Modal
 function showAccountModal() {
+    // إغلاق السايد بار إذا كان مفتوحاً
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+        toggleSidebar();
+    }
+    // إغلاق جميع الـ modals المفتوحة أولاً
+    closeAllModals();
+    
     const modal = document.getElementById('accountModal');
     if (!modal) {
         console.error('Account modal not found');
         return;
     }
+    
+    // تحديث حالة النافيجيشن
+    updateActiveNav(4);
     
     const detailsDiv = document.getElementById('subscriptionDetails');
     
@@ -5530,6 +5602,8 @@ function closeAccountModal() {
     if (modal) {
         modal.classList.add('hidden');
     }
+    // العودة إلى حالة البيت في النافيجيشن
+    updateActiveNav(0);
 }
     </script>
 
@@ -5555,23 +5629,23 @@ function closeAccountModal() {
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-bottom-nav">
         <div class="mobile-bottom-nav-container">
-            <div class="nav-item active" onclick="scrollToTop()">
+            <div class="nav-item active" id="navHome" onclick="scrollToTop()">
                 <div class="nav-item-icon">🏠</div>
                 <div class="nav-item-label">בית</div>
             </div>
-            <div class="nav-item" onclick="openDashboard()">
+            <div class="nav-item" id="navDashboard" onclick="openDashboard()">
                 <div class="nav-item-icon">📊</div>
                 <div class="nav-item-label">לוח בקרה</div>
             </div>
-            <div class="nav-item" onclick="openCalendarModal()">
+            <div class="nav-item" id="navCalendar" onclick="openCalendarModal()">
                 <div class="nav-item-icon">📅</div>
                 <div class="nav-item-label">יומן</div>
             </div>
-            <div class="nav-item" onclick="openBackupModal()">
+            <div class="nav-item" id="navBackup" onclick="openBackupModal()">
                 <div class="nav-item-icon">💾</div>
                 <div class="nav-item-label">גיבוי</div>
             </div>
-            <div class="nav-item" onclick="showAccountModal()">
+            <div class="nav-item" id="navAccount" onclick="showAccountModal()">
                 <div class="nav-item-icon">👤</div>
                 <div class="nav-item-label">חשבון</div>
             </div>
@@ -5584,12 +5658,26 @@ function closeAccountModal() {
     </button>
 
     <script>
+        // Close all modals function
+        function closeAllModals() {
+            // إغلاق جميع النوافذ المنبثقة
+            const modals = ['dashboardModal', 'calendarModal', 'backupModal', 'accountModal', 'carModal', 'appointmentModal', 'carSelectorModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (modal && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                }
+            });
+        }
+        
         // Scroll to top function
         function scrollToTop() {
+            // إغلاق جميع الـ modals المفتوحة
+            closeAllModals();
+            // الرجوع إلى أعلى الصفحة
             window.scrollTo({ top: 0, behavior: 'smooth' });
             // Update active state
-            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            updateActiveNav(0);
         }
         
         // Update active nav item
