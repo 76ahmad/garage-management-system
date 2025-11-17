@@ -18,7 +18,7 @@
     
     <!-- Version Indicator - للتأكد من التحديث -->
     <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 5px; font-size: 10px; z-index: 9999;">
-        v2.3-COUNTDOWN ⏱️
+        v3.1-FIRESTORE-CHECK ✅
     </div>
     
     <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
@@ -108,7 +108,7 @@
     </div>
 
     <script>
-        console.log('🚀 DRVN Login Page v2.3-COUNTDOWN Loaded');
+        console.log('🚀 DRVN Login Page v3.1-FIRESTORE-CHECK Loaded');
         console.log('📅 Build Date:', new Date().toISOString());
         
         // Firebase Configuration
@@ -161,20 +161,38 @@
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
                 const user = userCredential.user;
 
-                // Check if email is verified
-                if (!user.emailVerified) {
+                // Check BOTH Firebase Auth AND Firestore for verification status
+                console.log('🔍 Checking verification status...');
+                console.log('Firebase Auth emailVerified:', user.emailVerified);
+                
+                // Check Firestore for manual verification by admin
+                const userDoc = await db.collection('users').doc(user.uid).get();
+                const userData = userDoc.data();
+                
+                console.log('Firestore emailVerified:', userData?.emailVerified);
+                console.log('Firestore verifiedManually:', userData?.verifiedManually);
+                
+                // Allow login if EITHER Firebase Auth verified OR Firestore verified (manual)
+                const isVerified = user.emailVerified || userData?.emailVerified === true;
+                
+                if (!isVerified) {
+                    console.log('❌ User not verified in either system');
                     messageDiv.className = 'mt-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded';
                     messageDiv.innerHTML = `
                         <p class="font-bold">⚠️ האימייל לא אומת!</p>
                         <p class="text-sm mt-2">אנא אמת את האימייל שלך לפני שתתחבר.</p>
+                        <p class="text-xs mt-2 text-gray-600">אם אימתת דרך המנהל, נסה שוב או פנה לתמיכה.</p>
                         <button onclick="resendVerificationEmailNew()" id="resendBtn" class="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded font-bold text-sm">
                             📧 שלח אימות מחדש
                         </button>
                     `;
                     messageDiv.classList.remove('hidden');
-                    // Don't sign out yet - keep user logged in to resend verification
-                    // User will be signed out after clicking resend button
                     return;
+                }
+                
+                console.log('✅ User verified - allowing login');
+                if (userData?.verifiedManually) {
+                    console.log('ℹ️ User was verified manually by admin');
                 }
 
                 messageDiv.className = 'mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded';

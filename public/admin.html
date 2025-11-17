@@ -240,6 +240,7 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">אימייל</th>
+                                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">אימות אימייל</th>
                                     <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">תאריך הצטרפות</th>
                                     <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">סטטוס מנוי</th>
                                     <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">תוקף עד</th>
@@ -249,7 +250,7 @@
                             </thead>
                             <tbody id="usersTableBody" class="divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">טוען נתונים...</td>
+                                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">טוען נתונים...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -549,7 +550,7 @@
             if (users.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">אין משתמשים להצגה</td>
+                        <td colspan="7" class="px-4 py-8 text-center text-gray-500">אין משתמשים להצגה</td>
                     </tr>
                 `;
                 return;
@@ -578,20 +579,36 @@
                     }
                 }
                 
+                // Email verification status
+                const emailVerified = user.emailVerified === true;
+                const verificationBadge = emailVerified 
+                    ? '<span class="badge badge-active">✅ מאומת</span>'
+                    : '<span class="badge badge-pending">⚠️ לא מאומת</span>';
+                
+                // Actions - add resend verification button if not verified
                 const actions = `
-                    <div class="flex gap-2">
-                        <button onclick="extendSubscription('${user.id}')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">
-                            ➕ הארך
-                        </button>
-                        <button onclick="cancelSubscription('${user.id}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-bold">
-                            ❌ בטל
-                        </button>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex gap-2">
+                            <button onclick="extendSubscription('${user.id}')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">
+                                ➕ הארך
+                            </button>
+                            <button onclick="cancelSubscription('${user.id}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-bold">
+                                ❌ בטל
+                            </button>
+                        </div>
+                        ${!emailVerified ? `
+                            <button onclick="resendVerificationAdmin('${user.id}', '${user.email}')" 
+                                    class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm font-bold w-full">
+                                📧 שלח אימות
+                            </button>
+                        ` : ''}
                     </div>
                 `;
                 
                 return `
-                    <tr class="payment-row" data-status="${status}">
+                    <tr class="payment-row" data-status="${status}" data-user-id="${user.id}">
                         <td class="px-4 py-3 text-sm text-gray-700">${user.email || user.id || 'N/A'}</td>
+                        <td class="px-4 py-3">${verificationBadge}</td>
                         <td class="px-4 py-3 text-sm text-gray-700">${joinDate}</td>
                         <td class="px-4 py-3">${statusBadge}</td>
                         <td class="px-4 py-3 text-sm text-gray-700">${endDateStr}</td>
@@ -722,6 +739,41 @@
             } catch (error) {
                 console.error('Error canceling subscription:', error);
                 alert('❌ שגיאה בביטול המנוי: ' + error.message);
+            }
+        }
+
+        // Resend Verification Email (Admin)
+        async function resendVerificationAdmin(userId, userEmail) {
+            if (!confirm(`האם אתה בטוח שברצונך לשלוח מייל אימות ל-${userEmail}?`)) return;
+            
+            try {
+                console.log('📧 Admin sending verification email to:', userEmail);
+                
+                // Note: Firebase doesn't allow sending verification emails for other users directly
+                // We need to use Firebase Admin SDK or Cloud Functions for this
+                // As a workaround, we'll update the user's emailVerified status manually
+                // and notify them to check their email
+                
+                // Option 1: Manual verification (temporary solution)
+                const confirmManual = confirm(`⚠️ הערה: Firebase לא מאפשר לשלוח מיילים בשם משתמשים אחרים.\n\nהאם תרצה לסמן את המשתמש כמאומת ידנית?`);
+                
+                if (confirmManual) {
+                    await db.collection('users').doc(userId).update({
+                        emailVerified: true,
+                        verifiedManually: true,
+                        verifiedBy: 'admin',
+                        verifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    
+                    alert('✅ המשתמש סומן כמאומת בהצלחה!\n\nהמשתמש יכול כעת להתחבר למערכת.');
+                    refreshData();
+                } else {
+                    alert('💡 פתרון:\n\n1. בקש מהלקוח להתחבר שוב בדף ההתחברות\n2. הוא יקבל אפשרות לשלוח מייל אימות מחדש\n3. או תוכל לסמן אותו כמאומת ידנית');
+                }
+                
+            } catch (error) {
+                console.error('Error handling verification:', error);
+                alert('❌ שגיאה: ' + error.message);
             }
         }
 

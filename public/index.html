@@ -1997,12 +1997,33 @@
             // تحديث معلومات المستخدم
             await user.reload();
             
-            if (!user.emailVerified) {
+            // Check BOTH Firebase Auth AND Firestore for verification status
+            console.log('🔍 Checking verification status in index.html...');
+            console.log('Firebase Auth emailVerified:', user.emailVerified);
+            
+            // Check Firestore for manual verification by admin
+            const userDocRef = db.collection('users').doc(user.uid);
+            const userDocSnap = await userDocRef.get();
+            const userData = userDocSnap.data();
+            
+            console.log('Firestore emailVerified:', userData?.emailVerified);
+            console.log('Firestore verifiedManually:', userData?.verifiedManually);
+            
+            // Allow access if EITHER Firebase Auth verified OR Firestore verified (manual)
+            const isVerified = user.emailVerified || userData?.emailVerified === true;
+            
+            if (!isVerified) {
+                console.log('❌ User not verified in either system');
                 // الإيميل غير مؤكد → توجيه إلى صفحة التسجيل
                 alert('⚠️ يرجى تأكيد الإيميل أولاً\n\nאנא אמת את האימייל תחילה');
                 await auth.signOut();
                 window.location.href = 'login.html';
                 return;
+            }
+            
+            console.log('✅ User verified - allowing access to system');
+            if (userData?.verifiedManually) {
+                console.log('ℹ️ User was verified manually by admin');
             }
             
             // المستخدم مسجل دخول ومؤكد
