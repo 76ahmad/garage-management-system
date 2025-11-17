@@ -1,5 +1,5 @@
 // Service Worker for Garage Management System PWA
-const CACHE_NAME = 'garage-system-v9'; // ⬅️ غير هذا الرقم مع كل تحديث (v2, v3, v4...)
+const CACHE_NAME = 'garage-system-v10'; // ⬅️ غير هذا الرقم مع كل تحديث (v2, v3, v4...)
 const urlsToCache = [
   './',
   './index.html',
