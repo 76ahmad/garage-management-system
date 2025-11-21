@@ -1,86 +1,109 @@
 // Service Worker for Garage Management System PWA
-const CACHE_NAME = 'garage-system-v14'; // ⬅️ غير هذا الرقم مع كل تحديث (v2, v3, v4...)
+const CACHE_NAME = 'garage-system-v39'; // ⬅️ غير هذا الرقم مع كل تحديث
 const urlsToCache = [
   './',
   './index.html',
-  './manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',
-  'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js'
+  './manifest.json'
+  // ملاحظة: CDN files لن يتم تخزينها في الـ cache لتجنب مشاكل CORS
 ];
 
 // Install event - cache resources
 self.addEventListener('install', event => {
-  console.log('[Service Worker] Installing...');
+  console.log('[Service Worker] Installing v26...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('[Service Worker] Caching app shell');
-        return cache.addAll(urlsToCache);
+        return cache.addAll(urlsToCache).catch(err => {
+          console.error('[Service Worker] Cache addAll failed:', err);
+          // Continue anyway - don't fail installation
+          return Promise.resolve();
+        });
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('[Service Worker] Skip waiting...');
+        return self.skipWaiting();
+      })
   );
 });
 
-// Activate event - clean old caches
+// Activate event - clean old caches aggressively
 self.addEventListener('activate', event => {
-  console.log('[Service Worker] Activating...');
+  console.log('[Service Worker] Activating v26...');
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    Promise.all([
+      // Delete ALL old caches
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName !== CACHE_NAME) {
+              console.log('[Service Worker] Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      }),
+      // Take control immediately
+      self.clients.claim()
+    ]).then(() => {
+      console.log('[Service Worker] Activated and claimed clients');
+      // Notify all clients about the update
+      return self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'SW_ACTIVATED',
+            version: 'v26'
+          });
+        });
+      });
+    })
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - Network first for CDN, cache for local files
 self.addEventListener('fetch', event => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin) && 
-      !event.request.url.includes('gstatic.com') &&
-      !event.request.url.includes('tailwindcss.com')) {
+  const url = new URL(event.request.url);
+  
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') {
     return;
   }
-
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-
-        // Clone the request
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then(response => {
-          // Check if valid response
-          if (!response || response.status !== 200 || response.type === 'error') {
+  
+  // Skip Firebase and CDN requests - let them go direct to network
+  if (url.hostname.includes('firebaseapp.com') ||
+      url.hostname.includes('googleapis.com') ||
+      url.hostname.includes('gstatic.com') ||
+      url.hostname.includes('tailwindcss.com') ||
+      url.hostname.includes('cloudflare.com')) {
+    return event.respondWith(fetch(event.request));
+  }
+  
+  // For same-origin requests, use cache-first strategy
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(event.request)
+        .then(response => {
+          if (response) {
             return response;
           }
-
-          // Clone the response
-          const responseToCache = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              // Only cache GET requests
-              if (event.request.method === 'GET') {
-                cache.put(event.request, responseToCache);
-              }
+          
+          return fetch(event.request).then(response => {
+            // Check if valid response
+            if (!response || response.status !== 200 || response.type === 'error') {
+              return response;
+            }
+            
+            // Clone and cache the response
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
             });
-
-          return response;
-        }).catch(error => {
+            
+            return response;
+          });
+        })
+        .catch(error => {
           console.error('[Service Worker] Fetch failed:', error);
-          // You can return a custom offline page here
           return new Response('אין חיבור לאינטרנט - אנא בדוק את החיבור שלך', {
             status: 503,
             statusText: 'Service Unavailable',
@@ -88,9 +111,9 @@ self.addEventListener('fetch', event => {
               'Content-Type': 'text/plain; charset=utf-8'
             })
           });
-        });
-      })
-  );
+        })
+    );
+  }
 });
 
 // Background sync for offline data submission

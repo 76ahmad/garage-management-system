@@ -23,6 +23,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 
     <style>
         * {
@@ -1389,6 +1390,11 @@
                     <span>מספר חלקי חילוף</span>
                 </button>
                 
+                <button id="notificationToggleBtn" onclick="toggleNotifications()" class="sidebar-menu-item">
+                    <span class="sidebar-icon">🔔</span>
+                    <span id="notificationBtnText">הפעל התראות</span>
+                </button>
+                
                 <button onclick="toggleSidebar(); setTimeout(() => openBackupModal(), 100);" class="sidebar-menu-item">
                     <span class="sidebar-icon">💾</span>
                     <span>גיבוי</span>
@@ -2186,7 +2192,7 @@
 
     <script>
         // Firebase Configuration
-      const firebaseConfig = {
+        const firebaseConfig = {
             apiKey: "AIzaSyCdSRfJCoU6xwDych3l_3K_hBZBHOi9jVg",
             authDomain: "garage-17263.firebaseapp.com",
             projectId: "garage-17263",
@@ -2195,7 +2201,6 @@
             appId: "1:332265903935:web:237c0787a161fd36a7a58a",
             measurementId: "G-KLLCPECCDQ"
         };
-
 
 
         // ==========================================
@@ -2383,7 +2388,7 @@
         
         // ==========================================
         // Initialize Firebase
-        let app, db, auth;
+        let app, db, auth, messaging; // ⭐ إضافة messaging هنا
         let currentUser = null;
         let cars = [];
         let appointments = [];
@@ -2404,6 +2409,15 @@
             db = firebase.firestore();
             auth = firebase.auth();
             console.log('Firebase initialized with maintenance system!');
+            
+            // Initialize Firebase Messaging
+            try {
+                messaging = firebase.messaging(); // ⭐ بدون let
+                console.log('Firebase Messaging initialized!');
+            } catch (msgError) {
+                console.log('Firebase Messaging not supported:', msgError);
+                messaging = null;
+            }
         } catch (error) {
             console.error('Firebase initialization error:', error);
             document.getElementById('loadingScreen').innerHTML = 
@@ -5265,6 +5279,10 @@
         // Show/Hide Backup Progress
         function showBackupProgress(show) {
             const progress = document.getElementById('backupProgress');
+            if (!progress) {
+                console.warn('Backup progress element not found');
+                return;
+            }
             if (show) {
                 progress.classList.remove('hidden');
             } else {
@@ -5275,8 +5293,16 @@
 
         // Update Backup Progress
         function updateBackupProgress(percent, text) {
-            document.getElementById('backupProgressBar').style.width = percent + '%';
-            document.getElementById('backupProgressText').textContent = text;
+            const progressBar = document.getElementById('backupProgressBar');
+            const progressText = document.getElementById('backupProgressText');
+            
+            if (!progressBar || !progressText) {
+                console.warn('Progress elements not found');
+                return;
+            }
+            
+            progressBar.style.width = percent + '%';
+            progressText.textContent = text;
         }
 
         // Handle Restore File
@@ -6372,45 +6398,84 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Service Worker for PWA with auto-update
+// Service Worker for PWA with auto-update and cleanup
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js')
-            .then(registration => {
-                console.log('✅ Service Worker registered');
-                
-                // Check for updates every 30 seconds
-                setInterval(() => {
-                    registration.update();
-                }, 30000);
-                
-                // Listen for updates
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            // New version available
-                            if (confirm('גרסה חדשה זמינה! לרענן את האפליקציה?')) {
-                                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                                window.location.reload();
-                            }
-                        }
-                    });
-                });
-            })
-            .catch(error => {
-                console.log('❌ Service Worker registration failed:', error);
-            });
-        
-        // Reload page when new service worker takes control
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (!refreshing) {
-                window.location.reload();
-                refreshing = true;
+    window.addEventListener('load', async () => {
+        try {
+            // 🧹 خطوة 1: تنظيف Service Workers القديمة
+            console.log('🧹 Cleaning old service workers...');
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                // احذف أي SW قديم ما عدا الحالي
+                if (!registration.active || registration.active.scriptURL.includes('v25')) {
+                    console.log('🗑️ Unregistering old SW:', registration.active?.scriptURL);
+                    await registration.unregister();
+                }
             }
-        });
+            
+            // 🧹 خطوة 2: تنظيف Cache القديم
+            console.log('🧹 Cleaning old caches...');
+            const cacheNames = await caches.keys();
+            for (let cacheName of cacheNames) {
+                if (cacheName.includes('v25') || cacheName.includes('v24') || cacheName.includes('v23')) {
+                    console.log('🗑️ Deleting old cache:', cacheName);
+                    await caches.delete(cacheName);
+                }
+            }
+            
+            // ✅ خطوة 3: تسجيل Service Worker الجديد
+            console.log('📝 Registering new service worker...');
+            const registration = await navigator.serviceWorker.register('/service-worker.js', {
+                scope: '/',
+                updateViaCache: 'none' // ⭐ مهم: لا تستخدم cache للـ SW نفسه
+            });
+            
+            console.log('✅ Service Worker registered successfully');
+            
+            // ⭐ التحقق من التحديثات كل ساعة (بدلاً من 30 ثانية)
+            setInterval(() => {
+                console.log('🔍 Checking for updates...');
+                registration.update();
+            }, 60 * 60 * 1000); // 1 hour
+            
+            // ⭐ الاستماع للتحديثات
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                console.log('📥 New version found, installing...');
+                
+                newWorker.addEventListener('statechange', () => {
+                    console.log('Service Worker state:', newWorker.state);
+                    
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        // ⭐ إشعار فقط - بدون إعادة تحميل تلقائية
+                        console.log('ℹ️ New version available');
+                        showToast('🔄 גרסה חדשה זמינה - רענן את הדף', 'info');
+                        
+                        // لا نجبر التحديث - المستخدم يقرر
+                        // newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                });
+            });
+            
+            // ⭐ الاستماع لرسائل من SW
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'SW_ACTIVATED') {
+                    console.log('✅ Service Worker activated:', event.data.version);
+                }
+            });
+            
+            // ⭐ الاستماع لتغيير Controller
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                console.log('🔄 Controller changed, reloading...');
+                window.location.reload(true);
+            });
+            
+        } catch (error) {
+            console.error('❌ Service Worker setup failed:', error);
+        }
     });
 }
 
@@ -6717,9 +6782,647 @@ function closeAccountModal() {
             }
         }, { passive: false });
     }
-});
-    </script>
     
+    // تحقق من حالة الإشعارات عند تحميل الصفحة
+    checkNotificationStatus();
+});
+
+// ==========================================
+// نظام الإشعارات - Firebase Cloud Messaging
+// ==========================================
+
+// دالة عرض رسائل Toast
+function showToast(message, type = 'info') {
+    // إنشاء عنصر Toast
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg z-[99999] transition-all duration-300';
+    
+    // تحديد اللون حسب النوع
+    const colors = {
+        success: 'bg-green-500 text-white',
+        error: 'bg-red-500 text-white',
+        warning: 'bg-yellow-500 text-white',
+        info: 'bg-blue-500 text-white'
+    };
+    
+    toast.className += ' ' + (colors[type] || colors.info);
+    toast.textContent = message;
+    toast.style.opacity = '0';
+    
+    // إضافة إلى الصفحة
+    document.body.appendChild(toast);
+    
+    // عرض مع Animation
+    setTimeout(() => {
+        toast.style.opacity = '1';
+    }, 10);
+    
+    // إخفاء وحذف بعد 3 ثواني
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// تحقق من حالة الإشعارات
+async function checkNotificationStatus() {
+    if (!messaging) {
+        console.log('Messaging not available');
+        return;
+    }
+    
+    if (!currentUser) return;
+    
+    try {
+        // ⭐ التحقق من Firestore أولاً
+        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+        const userData = userDoc.data();
+        
+        const permission = Notification.permission;
+        console.log('📱 Notification permission:', permission);
+        console.log('📱 Firestore data:', {
+            hasToken: !!userData?.fcmToken,
+            disabled: userData?.notificationsDisabled
+        });
+        
+        // ⭐ إذا الإذن محظور
+        if (permission === 'denied') {
+            updateNotificationButton(false, true); // blocked
+            return;
+        }
+        
+        // ⭐ إذا الإذن ممنوح
+        if (permission === 'granted') {
+            // تحقق من Firestore
+            const isEnabled = userData?.fcmToken && !userData?.notificationsDisabled;
+            
+            if (isEnabled) {
+                updateNotificationButton(true); // مفعّل
+            } else {
+                updateNotificationButton(false); // مطفي
+            }
+            return;
+        }
+        
+        // ⭐ إذا لم يُطلب الإذن بعد
+        updateNotificationButton(false, false);
+        
+    } catch (error) {
+        console.error('Error checking notification status:', error);
+        updateNotificationButton(false, false);
+    }
+}
+
+// تحديث زر الإشعارات
+function updateNotificationButton(enabled, blocked = false) {
+    const btn = document.getElementById('notificationToggleBtn');
+    const text = document.getElementById('notificationBtnText');
+    const icon = btn?.querySelector('.sidebar-icon');
+    
+    if (!btn || !text) return;
+    
+    if (enabled) {
+        // ✅ مفعّل
+        btn.style.background = 'rgba(34, 197, 94, 0.2)';
+        btn.style.borderLeft = '4px solid #22c55e';
+        text.textContent = '✓ התראות פעילות';
+        if (icon) icon.textContent = '🔔';
+    } else if (blocked) {
+        // 🚫 محظور
+        btn.style.background = 'rgba(239, 68, 68, 0.1)';
+        btn.style.borderLeft = '4px solid #ef4444';
+        text.textContent = 'התראות חסומות';
+        if (icon) icon.textContent = '🚫';
+    } else {
+        // ⚪ غير مفعّل (default)
+        btn.style.background = 'transparent';
+        btn.style.borderLeft = '';
+        text.textContent = 'הפעל התראות';
+        if (icon) icon.textContent = '🔔';
+    }
+}
+
+// تفعيل/تعطيل الإشعارات
+async function toggleNotifications() {
+    if (!messaging) {
+        showToast('⚠️ התראות לא נתמכות בדפדפן זה', 'error');
+        return;
+    }
+    
+    if (!currentUser) {
+        showToast('⚠️ נא להתחבר תחילה', 'error');
+        return;
+    }
+    
+    try {
+        const currentPermission = Notification.permission;
+        console.log('Current permission status:', currentPermission);
+        
+        // ⭐ التحقق من حالة التفعيل في Firestore
+        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+        const userData = userDoc.data();
+        const isEnabled = userData?.fcmToken && !userData?.notificationsDisabled;
+        
+        // ⭐ إذا كانت الإشعارات مفعلة → إيقاف
+        if (currentPermission === 'granted' && isEnabled) {
+            console.log('🔕 Disabling notifications...');
+            
+            try {
+                // حذف Token من Firestore
+                await db.collection('users').doc(currentUser.uid).update({
+                    fcmToken: null,
+                    notificationsDisabled: true,
+                    notificationsDisabledAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                showToast('🔕 ההתראות הושבתו', 'success');
+                updateNotificationButton(false);
+                console.log('✅ Notifications disabled');
+            } catch (error) {
+                console.error('Error disabling notifications:', error);
+                showToast('⚠️ שגיאה בהשבתת התראות', 'error');
+            }
+            return;
+        }
+        
+        // ⭐ إذا كانت محظورة نهائياً (denied)
+        if (currentPermission === 'denied') {
+            showToast('⚠️ ההתראות חסומות. אנא אפשר אותן בהגדרות הדפדפן', 'warning');
+            
+            // عرض رسالة توضيحية مختصرة
+            setTimeout(() => {
+                alert('כדי להפעיל התראות:\n\n' +
+                      'הגדרות Chrome → אתרים → התראות\n' +
+                      'מצא את garageapp-test.web.app ואפשר');
+            }, 500);
+            return;
+        }
+        
+        // ⭐ إذا كانت "default" أو تم إيقافها → تفعيل
+        console.log('🔔 Enabling notifications...');
+        
+        // إذا كان الإذن موجود لكن التوكن محذوف، استرجع التوكن
+        if (currentPermission === 'granted') {
+            await getNotificationToken();
+            
+            await db.collection('users').doc(currentUser.uid).update({
+                notificationsDisabled: false,
+                notificationsEnabledAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            showToast('🔔 ההתראות הופעלו!', 'success');
+            updateNotificationButton(true);
+            return;
+        }
+        
+        // طلب الإذن لأول مرة
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            console.log('✅ Notification permission granted!');
+            
+            // الحصول على التوكن
+            await getNotificationToken();
+            
+            // تحديث Firestore
+            await db.collection('users').doc(currentUser.uid).update({
+                notificationsDisabled: false,
+                notificationsEnabledAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            showToast('🔔 ההתראות הופעלו בהצלחה!', 'success');
+            updateNotificationButton(true);
+        } else if (permission === 'denied') {
+            console.log('❌ Notification permission denied');
+            showToast('❌ ההרשאה להתראות נדחתה', 'error');
+            updateNotificationButton(false, true);
+        } else {
+            console.log('ℹ️ Notification permission dismissed');
+            showToast('ℹ️ בקשת ההתראות בוטלה', 'info');
+        }
+    } catch (error) {
+        console.error('Error toggling notifications:', error);
+        showToast('⚠️ שגיאה: ' + error.message, 'error');
+    }
+}
+
+// الحصول على توكن الإشعارات
+async function getNotificationToken() {
+    if (!messaging || !currentUser) return;
+    
+    try {
+        console.log('🔔 Starting notification token registration...');
+        
+        // خطوة 1: انتظر حتى يصبح Service Worker جاهز
+        await navigator.serviceWorker.ready;
+        console.log('✅ Main Service Worker is ready');
+        
+        // خطوة 2: تسجيل firebase-messaging-sw بشكل منفصل
+        let messagingRegistration;
+        try {
+            messagingRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                scope: '/',
+                updateViaCache: 'none'
+            });
+            console.log('✅ Firebase Messaging SW registered:', messagingRegistration);
+            
+            // انتظر حتى يصبح نشط
+            if (messagingRegistration.installing) {
+                await new Promise((resolve) => {
+                    messagingRegistration.installing.addEventListener('statechange', (e) => {
+                        if (e.target.state === 'activated') {
+                            console.log('✅ Messaging SW activated');
+                            resolve();
+                        }
+                    });
+                });
+            }
+        } catch (swError) {
+            console.error('❌ Failed to register messaging SW:', swError);
+            throw new Error('Failed to register messaging service worker');
+        }
+        
+        // خطوة 3: الحصول على التوكن
+        console.log('🔑 Getting FCM token...');
+        let currentToken = null;
+        
+        // محاولة مع VAPID Key
+        const vapidKey = 'BDJ7InAeHqovFzryLHPltWqqYokGOPBdlFaJrBiIx0BcsSCg9DbsKD2LRmsLO5fi1-H8sjEBMWvRhQuOd943aHM';
+        
+        try {
+            currentToken = await messaging.getToken({
+                vapidKey: vapidKey,
+                serviceWorkerRegistration: messagingRegistration
+            });
+        } catch (tokenError) {
+            console.error('❌ Error getting token with VAPID:', tokenError);
+            console.log('ℹ️ Trying without VAPID key...');
+            
+            try {
+                // محاولة بدون VAPID
+                currentToken = await messaging.getToken({
+                    serviceWorkerRegistration: messagingRegistration
+                });
+            } catch (fallbackError) {
+                console.error('❌ Both token attempts failed:', fallbackError);
+                throw new Error('Cannot get notification token. Please check Firebase configuration.');
+            }
+        }
+        
+        if (currentToken) {
+            console.log('✅ FCM Token obtained:', currentToken.substring(0, 20) + '...');
+            
+            // حفظ التوكن في Firestore
+            await db.collection('users').doc(currentUser.uid).update({
+                fcmToken: currentToken,
+                fcmTokenUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+                notificationsEnabled: true
+            });
+            
+            console.log('✅ Token saved to Firestore');
+            showToast('✅ ההתראות הופעלו בהצלחה!', 'success');
+            updateNotificationButton(true);
+            
+            // استقبال الرسائل عندما يكون التطبيق مفتوح
+            messaging.onMessage((payload) => {
+                console.log('📩 Message received:', payload);
+                showInAppNotification(payload);
+            });
+            
+        } else {
+            console.log('⚠️ No registration token available');
+            showToast('⚠️ לא ניתן לקבל אסימון התראות', 'warning');
+        }
+    } catch (error) {
+        console.error('❌ Full error getting notification token:', error);
+        console.error('Error stack:', error.stack);
+        showToast('⚠️ שגיאה בהפעלת ההתראות: ' + error.message, 'error');
+        updateNotificationButton(false);
+    }
+}
+
+// عرض الإشعار داخل التطبيق
+function showInAppNotification(payload) {
+    const title = payload.notification?.title || 'DRVN';
+    const body = payload.notification?.body || 'יש לך עדכון חדש';
+    
+    // يمكن إضافة نافذة منبثقة مخصصة هنا
+    showToast(`🔔 ${title}: ${body}`, 'info');
+    
+    // تشغيل صوت (اختياري)
+    playNotificationSound();
+}
+
+// تشغيل صوت الإشعار
+function playNotificationSound() {
+    try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE');
+        audio.volume = 0.3;
+        audio.play().catch(e => console.log('Could not play sound:', e));
+    } catch (e) {
+        console.log('Audio not supported');
+    }
+}
+
+// إرسال إشعار تجريبي (للاختبار)
+async function sendTestNotification() {
+    if (!currentUser) {
+        showToast('⚠️ נא להתחבר תחילה', 'error');
+        return;
+    }
+    
+    try {
+        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+        const fcmToken = userDoc.data()?.fcmToken;
+        
+        if (!fcmToken) {
+            showToast('⚠️ נא להפעיל התראות תחילה', 'error');
+            return;
+        }
+        
+        showToast('📨 שולח התראת בדיקה...', 'info');
+        
+        // هنا ستحتاج لإنشاء Cloud Function في Firebase لإرسال الإشعارات
+        // أو استخدام Firebase Admin SDK من الخادم
+        
+        console.log('Test notification would be sent to:', fcmToken);
+        
+    } catch (error) {
+        console.error('Error sending test notification:', error);
+        showToast('⚠️ שגיאה בשליחת התראה', 'error');
+    }
+}
+    </script>
+        <script>
+// ==========================================
+// نظام الإشعارات المجاني (بدون Cloud Functions)
+// ==========================================
+
+// 1️⃣ فحص المواعيد القادمة (كل 10 دقائق)
+async function checkUpcomingAppointments() {
+    if (!currentUser) return;
+    
+    const now = new Date();
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    
+    try {
+        // ⭐ نستعلم فقط على الحقول المفهرسة (date + notificationSent)
+        const appointmentsSnapshot = await db.collection('appointments')
+            .where('userId', '==', currentUser.uid)
+            .where('date', '>=', now)
+            .where('notificationSent', '==', false)  // ⭐ استخدم == بدلاً من !=
+            .get();
+        
+        // ⭐ فلترة في الكود للمواعيد خلال ساعة واحدة
+        const upcomingAppointments = appointmentsSnapshot.docs.filter(doc => {
+            const appointmentDate = doc.data().date.toDate();
+            return appointmentDate <= oneHourLater;
+        });
+        
+        for (const doc of upcomingAppointments) {
+            const appointment = doc.data();
+            
+            try {
+                const carDoc = await db.collection('cars').doc(appointment.carId).get();
+                if (!carDoc.exists) continue;
+                
+                const car = carDoc.data();
+                const carInfo = `${car.manufacturer} ${car.model} (${car.licensePlate})`;
+                
+                // ⭐ استخدام Service Worker Notification (أفضل!)
+                if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification('⏰ תזכורת: פגישה בעוד שעה', {
+                            body: `פגישה עם ${carInfo} בשעה ${appointment.time}`,
+                            icon: '/icon-192.png',
+                            badge: '/icon-192.png',
+                            tag: `appointment-${doc.id}`,
+                            requireInteraction: true,
+                            vibrate: [200, 100, 200],
+                            dir: 'rtl',
+                            data: {
+                                type: 'appointment',
+                                appointmentId: doc.id,
+                                carId: appointment.carId
+                            }
+                        });
+                    });
+                }
+                
+                await doc.ref.update({
+                    notificationSent: true,
+                    notificationSentAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                console.log('✅ Appointment notification sent for:', carInfo);
+            } catch (carError) {
+                console.error('Error processing appointment:', carError);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking appointments:', error);
+    }
+}
+
+// 2️⃣ فحص الفواتير غير المدفوعة (كل ساعة)
+async function checkUnpaidInvoices() {
+    if (!currentUser) return;
+    
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    
+    try {
+        const carsSnapshot = await db.collection('cars')
+            .where('userId', '==', currentUser.uid)
+            .where('paymentStatus', '==', 'unpaid')
+            .where('updatedAt', '<=', firebase.firestore.Timestamp.fromDate(threeDaysAgo))
+            .get();
+        
+        const today = new Date().toDateString();
+        const lastCheck = localStorage.getItem('lastUnpaidCheck');
+        
+        if (lastCheck === today) return;
+        
+        if (!carsSnapshot.empty && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+            const count = carsSnapshot.size;
+            
+            navigator.serviceWorker.ready.then(registration => {
+                registration.showNotification('💰 תזכורת: חשבוניות ממתינות', {
+                    body: `יש לך ${count} חשבוניות ממתינות לתשלום`,
+                    icon: '/icon-192.png',
+                    badge: '/icon-192.png',
+                    tag: 'unpaid-invoices',
+                    requireInteraction: true,
+                    vibrate: [200, 100, 200],
+                    dir: 'rtl',
+                    data: {
+                        type: 'unpaid-invoices',
+                        count: count
+                    }
+                });
+            });
+            
+            localStorage.setItem('lastUnpaidCheck', today);
+        }
+    } catch (error) {
+        console.error('Error checking unpaid invoices:', error);
+    }
+}
+
+// 3️⃣ فحص انتهاء الاشتراك (يومياً)
+async function checkSubscriptionExpiry() {
+    if (!currentUser) return;
+    
+    try {
+        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+        const userData = userDoc.data();
+        
+        if (!userData.subscriptionEndDate) return;
+        
+        const endDate = userData.subscriptionEndDate.toDate();
+        const now = new Date();
+        const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+        
+        const today = new Date().toDateString();
+        const lastCheck = localStorage.getItem('lastSubscriptionCheck');
+        
+        if (lastCheck === today) return;
+        
+        let title, body;
+        
+        if (daysLeft <= 0) {
+            title = '❌ המנוי פג תוקף';
+            body = 'המנוי שלך פג תוקף. חדש אותו עכשיו';
+        } else if (daysLeft <= 3) {
+            title = '⚠️ המנוי מסתיים בקרוב';
+            body = `המנוי שלך מסתיים בעוד ${daysLeft} ימים`;
+        } else if (daysLeft <= 7) {
+            title = '⏰ המנוי מסתיים בעוד שבוע';
+            body = `המנוי שלך מסתיים בעוד ${daysLeft} ימים`;
+        } else {
+            localStorage.setItem('lastSubscriptionCheck', today);
+            return;
+        }
+        
+        if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+                registration.showNotification(title, {
+                    body: body,
+                    icon: '/icon-192.png',
+                    badge: '/icon-192.png',
+                    tag: 'subscription-expiry',
+                    requireInteraction: true,
+                    vibrate: [300, 100, 300],
+                    dir: 'rtl',
+                    data: {
+                        type: 'subscription',
+                        daysLeft: daysLeft
+                    }
+                });
+            });
+        }
+        
+        localStorage.setItem('lastSubscriptionCheck', today);
+    } catch (error) {
+        console.error('Error checking subscription:', error);
+    }
+}
+
+// تشغيل الفحوصات
+auth.onAuthStateChanged((user) => {
+    if (user && Notification.permission === 'granted') {
+        // فحص فوري بعد 5 ثواني من تسجيل الدخول
+        setTimeout(() => {
+            checkUpcomingAppointments();
+            checkUnpaidInvoices();
+            checkSubscriptionExpiry();
+        }, 5000);
+        
+        // فحص المواعيد كل 10 دقائق
+        setInterval(checkUpcomingAppointments, 10 * 60 * 1000);
+        
+        // فحص الفواتير كل ساعة
+        setInterval(checkUnpaidInvoices, 60 * 60 * 1000);
+        
+        // فحص الاشتراك كل 6 ساعات
+        setInterval(checkSubscriptionExpiry, 6 * 60 * 60 * 1000);
+    }
+});
+
+// ========== دالة اختبار الإشعارات ==========
+async function testNotifications() {
+    console.log('🧪 بدء اختبار الإشعارات...');
+    
+    // 1. تحقق من الإذن
+    if (Notification.permission !== 'granted') {
+        console.log('❌ الإذن غير ممنوح');
+        alert('يرجى السماح بالإشعارات أولاً من القائمة الجانبية!');
+        return;
+    }
+    
+    // 2. تحقق من Service Worker
+    if (!('serviceWorker' in navigator)) {
+        console.log('❌ Service Worker غير مدعوم');
+        alert('متصفحك لا يدعم Service Worker');
+        return;
+    }
+    
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        console.log('✅ Service Worker جاهز');
+        
+        // 3. إشعار ترحيبي (فوراً)
+        await registration.showNotification('👋 مرحباً بك في DRVN!', {
+            body: 'سنرسل لك 3 إشعارات تجريبية',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'test-welcome',
+            dir: 'rtl',
+            requireInteraction: false
+        });
+        console.log('✅ إشعار 1: تم إرساله');
+        
+        // 4. إشعار موعد (بعد 3 ثواني)
+        setTimeout(async () => {
+            await registration.showNotification('⏰ תזכורת: פגישה בעוד שעה', {
+                body: 'פגישה עם טויוטה קאמרי (123-456) בעוד שעה אחת',
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                tag: 'test-appointment',
+                dir: 'rtl',
+                requireInteraction: true,
+                vibrate: [200, 100, 200]
+            });
+            console.log('✅ إشعار 2: تم إرساله');
+        }, 3000);
+        
+        // 5. إشعار سيارة جاهزة (بعد 6 ثواني)
+        setTimeout(async () => {
+            await registration.showNotification('✅ הרכב מוכן לאיסוף!', {
+                body: 'BMW X5 (789-012) מוכן לאיסוף',
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                tag: 'test-car-ready',
+                dir: 'rtl',
+                vibrate: [300, 100, 300, 100, 300],
+                requireInteraction: true
+            });
+            console.log('✅ إشعار 3: تم إرساله');
+        }, 6000);
+        
+        console.log('⏳ انتظر 10 ثواني لرؤية جميع الإشعارات...');
+        showToast('✅ נשלחו 3 התראות ניסיון!', 'success');
+        
+    } catch (error) {
+        console.error('❌ خطأ في الاختبار:', error);
+        showToast('⚠️ שגיאה: ' + error.message, 'error');
+    }
+}
+    </script>
 
 </body>
 </html>
