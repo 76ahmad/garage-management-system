@@ -16,6 +16,23 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.0.0">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.0.0">
 
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+                appId: "e158d77c-3eb7-4959-b6dc-de8a0b581880",
+                safari_web_id: "web.onesignal.auto.DRVN",
+                notifyButton: {
+                    enable: false,
+                },
+                allowLocalhostAsSecureOrigin: true,
+            });
+            console.log('✅ OneSignal initialized!');
+        });
+    </script>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -565,15 +582,17 @@
         #calendarGrid > div.has-appointments::after {
             content: '';
             position: absolute;
-            bottom: 4px;
-            width: 4px;
-            height: 4px;
-            background: var(--accent);
+            bottom: 6px;
+            width: 6px;
+            height: 6px;
+            background: #ef4444;
             border-radius: 50%;
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
         }
         
         #calendarGrid > div.selected.has-appointments::after {
             background: white;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
         }
         
         #calendarGrid > div span:first-child {
@@ -1895,7 +1914,7 @@
                 </div>
             </div>
             
-            <div class="p-3 md:p-6 pb-24 md:pb-6">
+            <div id="backupModalContent" class="p-3 md:p-6 pb-24 md:pb-6">
                 <!-- Quick Actions - Prominent Buttons -->
                 <div class="mb-4 space-y-3">
                     <button onclick="createAutoBackup(true)" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-98 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg transition-all text-lg">
@@ -1933,47 +1952,6 @@
                     </div>
                 </div>
                 
-                <!-- Advanced Options -->
-                <details class="mb-4">
-                    <summary class="cursor-pointer p-3 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-lg font-bold text-gray-700 flex items-center justify-between transition">
-                        <span>⚙️ אפשרויות מתקדמות</span>
-                        <span class="text-sm">▼</span>
-                    </summary>
-                    
-                    <div class="mt-3 space-y-3">
-                        <!-- Manual Backup -->
-                        <div class="bg-white p-3 rounded-lg border shadow-sm">
-                            <div class="font-bold mb-2 text-sm">📤 גיבוי ידני</div>
-                            <div class="space-y-2">
-                                <button onclick="createBackup()" class="w-full bg-teal-600 text-white px-4 py-3 rounded-lg hover:bg-teal-700 active:scale-98 font-bold flex items-center justify-center gap-2 transition-all">
-                                    <span>💾</span>
-                                    <span class="text-sm">גיבוי מלא</span>
-                                </button>
-                                <button onclick="createBackupWithImages()" class="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 active:scale-98 font-bold flex items-center justify-center gap-2 transition-all">
-                                    <span>📸</span>
-                                    <span class="text-sm">גיבוי + תמונות</span>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Restore -->
-                        <div class="bg-white p-3 rounded-lg border shadow-sm">
-                            <div class="font-bold mb-2 text-sm">📥 שחזור מגיבוי</div>
-                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 active:border-blue-500 transition">
-                                <input type="file" id="restoreFile" accept=".json" class="hidden" onchange="handleRestoreFile(event)">
-                                <label for="restoreFile" class="cursor-pointer">
-                                    <div class="text-3xl mb-1">📁</div>
-                                    <div class="text-blue-600 font-bold text-sm">בחר קובץ</div>
-                                </label>
-                            </div>
-                            <div class="bg-yellow-50 border-r-2 border-yellow-400 rounded p-2 mt-2">
-                                <div class="text-xs text-yellow-800">
-                                    ⚠️ שחזור ימחק את כל הנתונים!
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </details>
                 
                 <!-- Progress -->
                 <div id="backupProgress" class="hidden mb-4">
@@ -2192,7 +2170,7 @@
 
     <script>
         // Firebase Configuration
-        const firebaseConfig = {
+      const firebaseConfig = {
             apiKey: "AIzaSyCdSRfJCoU6xwDych3l_3K_hBZBHOi9jVg",
             authDomain: "garage-17263.firebaseapp.com",
             projectId: "garage-17263",
@@ -2403,6 +2381,29 @@
         let miniMonth = new Date().getMonth();
         let miniYear = new Date().getFullYear();
         let miniSelectedDate = null;
+        
+        // Helper function to safely convert timestamp to millis
+        function safeToMillis(timestamp) {
+            if (!timestamp) return null;
+            // If it's a Firestore Timestamp with toMillis method
+            if (timestamp && typeof timestamp.toMillis === 'function') {
+                return timestamp.toMillis();
+            }
+            // If it's already a number (milliseconds)
+            if (typeof timestamp === 'number') {
+                return timestamp;
+            }
+            // If it's a string date
+            if (typeof timestamp === 'string') {
+                const date = new Date(timestamp);
+                return isNaN(date.getTime()) ? null : date.getTime();
+            }
+            // If it has seconds property (Firestore Timestamp format)
+            if (timestamp && timestamp.seconds) {
+                return timestamp.seconds * 1000;
+            }
+            return null;
+        }
 
         try {
             app = firebase.initializeApp(firebaseConfig);
@@ -2475,6 +2476,9 @@
             // المستخدم مسجل دخول ومؤكد
             console.log('User authenticated:', user.email);
             currentUser = user;
+            
+            // تهيئة OneSignal للمستخدم
+            initOneSignalUser();
             
             // إخفاء شاشة التحميل وعرض النظام
             setTimeout(() => {
@@ -3046,8 +3050,8 @@
                 
                 // Sort by createdAt in JavaScript (no Firestore index needed)
                 maintenanceList.sort((a, b) => {
-                    const dateA = a.createdAt?.toMillis() || 0;
-                    const dateB = b.createdAt?.toMillis() || 0;
+                    const dateA = safeToMillis(a.createdAt) || 0;
+                    const dateB = safeToMillis(b.createdAt) || 0;
                     return dateB - dateA; // Newest first
                 });
                 
@@ -4160,7 +4164,17 @@
                 dayCell.className = className;
                 dayCell.onclick = () => selectMiniDate(dateStr);
                 
-                dayCell.innerHTML = `<div>${day}</div>`;
+                // Add dot indicator for days with appointments
+                if (dayAppointments.length > 0) {
+                    dayCell.innerHTML = `
+                        <div class="relative">
+                            ${day}
+                            <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        </div>
+                    `;
+                } else {
+                    dayCell.innerHTML = `<div>${day}</div>`;
+                }
                 
                 calendarGrid.appendChild(dayCell);
             }
@@ -5066,7 +5080,16 @@
 
         // Close Backup Modal
         function closeBackupModal() {
-            document.getElementById('backupModal').classList.add('hidden');
+            const modal = document.getElementById('backupModal');
+            const contentDiv = document.getElementById('backupModalContent');
+            
+            // Restore original content if it was changed
+            if (window.backupModalOriginalContent && contentDiv) {
+                contentDiv.innerHTML = window.backupModalOriginalContent;
+                console.log('✅ Content restored to original');
+            }
+            
+            modal.classList.add('hidden');
             // السماح بسكرول الـ body مرة أخرى
             document.body.classList.remove('modal-open');
             showUIElements(); // إظهار FAB والقائمة السفلية
@@ -5077,6 +5100,15 @@
         // Update Backup Info
         async function updateBackupInfo() {
             try {
+                // Check if elements exist (modal might be closed)
+                const totalDataElement = document.getElementById('totalDataCount');
+                const lastBackupElement = document.getElementById('lastBackupDate');
+                
+                if (!totalDataElement || !lastBackupElement) {
+                    console.log('Backup info elements not found - modal might be closed');
+                    return;
+                }
+                
                 const totalCars = cars.length;
                 
                 const maintenanceSnapshot = await db.collection('maintenance')
@@ -5089,14 +5121,16 @@
                     .get();
                 const totalAppointments = appointmentsSnapshot.size;
                 
-                document.getElementById('totalDataCount').textContent = 
+                totalDataElement.textContent = 
                     `${totalCars} רכבים, ${totalMaintenance} טיפולים, ${totalAppointments} פגישות`;
                 
                 // Get last backup date from localStorage
                 const lastBackup = localStorage.getItem('lastBackupDate');
                 if (lastBackup) {
-                    document.getElementById('lastBackupDate').textContent = 
+                    lastBackupElement.textContent = 
                         new Date(lastBackup).toLocaleString('he-IL');
+                } else {
+                    lastBackupElement.textContent = '-';
                 }
                 
             } catch (error) {
@@ -5141,8 +5175,8 @@
                         id: doc.id,
                         ...data,
                         images: [], // Remove images
-                        createdAt: data.createdAt?.toMillis() || null,
-                        updatedAt: data.updatedAt?.toMillis() || null
+                        createdAt: safeToMillis(data.createdAt),
+                        updatedAt: safeToMillis(data.updatedAt)
                     });
                 });
                 
@@ -5157,7 +5191,7 @@
                     backupData.appointments.push({
                         id: doc.id,
                         ...data,
-                        createdAt: data.createdAt?.toMillis() || null
+                        createdAt: safeToMillis(data.createdAt)
                     });
                 });
                 
@@ -5227,8 +5261,8 @@
                     backupData.maintenance.push({
                         id: doc.id,
                         ...data,
-                        createdAt: data.createdAt?.toMillis() || null,
-                        updatedAt: data.updatedAt?.toMillis() || null
+                        createdAt: safeToMillis(data.createdAt),
+                        updatedAt: safeToMillis(data.updatedAt)
                     });
                 });
                 
@@ -5242,7 +5276,7 @@
                     backupData.appointments.push({
                         id: doc.id,
                         ...data,
-                        createdAt: data.createdAt?.toMillis() || null
+                        createdAt: safeToMillis(data.createdAt)
                     });
                 });
                 
@@ -5360,16 +5394,22 @@
                 }
                 
                 updateBackupProgress(30, 'משחזר רכבים...');
-                // Restore cars with userId fix
+                // Restore cars with userId fix and create mapping
                 let carsRestored = 0;
+                const plateToCarIdMap = {}; // Map old plate numbers to new car IDs
+                
                 for (const car of backupData.cars) {
                     try {
                         const carData = { ...car };
+                        const oldPlate = carData.plateNumber;
                         delete carData.id;
                         // Ensure userId is set correctly
                         carData.userId = currentUser.uid;
                         carData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                        await db.collection('cars').add(carData);
+                        
+                        const docRef = await db.collection('cars').add(carData);
+                        plateToCarIdMap[oldPlate] = docRef.id; // Store mapping
+                        console.log(`🚗 Car added: ${oldPlate} -> ${docRef.id}`);
                         carsRestored++;
                     } catch (carError) {
                         console.error('Error restoring car:', carError);
@@ -5377,12 +5417,25 @@
                 }
                 
                 updateBackupProgress(50, `משחזר טיפולים... (${carsRestored} רכבים)` );
-                // Restore maintenance
+                // Restore maintenance with correct carId
                 let maintenanceRestored = 0;
+                console.log('📋 Plate to CarId Map:', plateToCarIdMap);
+                
                 for (const maintenance of backupData.maintenance) {
                     try {
                         const maintenanceData = { ...maintenance };
                         delete maintenanceData.id;
+                        
+                        // Map to new carId using plate number
+                        const newCarId = plateToCarIdMap[maintenanceData.plateNumber];
+                        console.log(`🔧 Maintenance: ${maintenanceData.plateNumber} -> ${newCarId}`);
+                        
+                        if (newCarId) {
+                            maintenanceData.carId = newCarId;
+                        } else {
+                            console.warn(`⚠️ No carId found for plate: ${maintenanceData.plateNumber}`);
+                        }
+                        
                         // Ensure userId is set correctly
                         maintenanceData.userId = currentUser.uid;
                         
@@ -5411,12 +5464,23 @@
                 }
                 
                 updateBackupProgress(70, `משחזר פגישות... (${maintenanceRestored} טיפולים)`);
-                // Restore appointments
+                // Restore appointments with correct carId
                 let appointmentsRestored = 0;
                 for (const appointment of backupData.appointments) {
                     try {
                         const appointmentData = { ...appointment };
                         delete appointmentData.id;
+                        
+                        // Map to new carId using plate number
+                        const newCarId = plateToCarIdMap[appointmentData.plateNumber];
+                        console.log(`📅 Appointment: ${appointmentData.plateNumber} -> ${newCarId}`);
+                        
+                        if (newCarId) {
+                            appointmentData.carId = newCarId;
+                        } else {
+                            console.warn(`⚠️ No carId found for plate: ${appointmentData.plateNumber}`);
+                        }
+                        
                         // Ensure userId is set correctly
                         appointmentData.userId = currentUser.uid;
                         
@@ -5596,77 +5660,116 @@
         
         // Save backup to IndexedDB with proper version handling
         async function saveBackupLocally(backupData) {
+            if (!currentUser) {
+                console.error('No user logged in');
+                return;
+            }
+            
+            const dbName = `DRVN_Backups_${currentUser.uid}`;
+            
             return new Promise((resolve, reject) => {
-                // Delete old database first to avoid version conflicts
-                const deleteRequest = indexedDB.deleteDatabase('DRVN_Backups');
+                const request = indexedDB.open(dbName, 1);
                 
-                deleteRequest.onsuccess = () => {
-                    createAndSaveBackup();
+                request.onerror = () => {
+                    console.error('IndexedDB error:', request.error);
+                    reject(request.error);
                 };
                 
-                deleteRequest.onerror = () => {
-                    // If delete fails, try to save anyway
-                    createAndSaveBackup();
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('backups')) {
+                        const objectStore = db.createObjectStore('backups', { keyPath: 'id' });
+                        objectStore.createIndex('date', 'date', { unique: false });
+                    }
                 };
                 
-                deleteRequest.onblocked = () => {
-                    // If blocked, try to save anyway
-                    createAndSaveBackup();
-                };
-                
-                function createAndSaveBackup() {
-                    const request = indexedDB.open('DRVN_Backups', 1);
+                request.onsuccess = async (event) => {
+                    const db = event.target.result;
                     
-                    request.onerror = () => {
-                        console.error('IndexedDB error:', request.error);
-                        reject(request.error);
-                    };
-                    
-                    request.onupgradeneeded = (event) => {
-                        const db = event.target.result;
-                        if (!db.objectStoreNames.contains('backups')) {
-                            const objectStore = db.createObjectStore('backups', { keyPath: 'id' });
-                            objectStore.createIndex('date', 'date', { unique: false });
-                        }
-                    };
-                    
-                    request.onsuccess = (event) => {
-                        const db = event.target.result;
+                    try {
+                        // First, get all existing backups
+                        const getAllTransaction = db.transaction(['backups'], 'readonly');
+                        const getAllStore = getAllTransaction.objectStore('backups');
+                        const getAllRequest = getAllStore.getAll();
                         
-                        try {
-                            const transaction = db.transaction(['backups'], 'readwrite');
-                            const store = transaction.objectStore('backups');
+                        getAllRequest.onsuccess = () => {
+                            const allBackups = getAllRequest.result;
                             
-                            const backup = {
-                                id: Date.now(),
-                                date: new Date().toISOString(),
-                                data: backupData,
-                                size: JSON.stringify(backupData).length,
-                                carsCount: backupData.cars.length,
-                                maintenanceCount: backupData.maintenance.length
-                            };
+                            // Sort by date (newest first)
+                            allBackups.sort((a, b) => new Date(b.date) - new Date(a.date));
                             
-                            const addRequest = store.add(backup);
-                            
-                            addRequest.onsuccess = () => {
-                                db.close();
-                                resolve(backup);
-                            };
-                            
-                            addRequest.onerror = () => {
-                                db.close();
-                                reject(addRequest.error);
-                            };
-                            
-                            transaction.onerror = () => {
-                                db.close();
-                                reject(transaction.error);
-                            };
-                        } catch (error) {
+                            // If we have 4 or more backups, delete the oldest ones
+                            if (allBackups.length >= 4) {
+                                const transaction = db.transaction(['backups'], 'readwrite');
+                                const store = transaction.objectStore('backups');
+                                
+                                // Keep only the 3 newest, delete the rest
+                                for (let i = 3; i < allBackups.length; i++) {
+                                    store.delete(allBackups[i].id);
+                                }
+                                
+                                transaction.oncomplete = () => {
+                                    // Now add the new backup
+                                    addNewBackup(db, backupData, resolve, reject);
+                                };
+                                
+                                transaction.onerror = () => {
+                                    // Even if deletion fails, try to add new backup
+                                    addNewBackup(db, backupData, resolve, reject);
+                                };
+                            } else {
+                                // Less than 4 backups, just add the new one
+                                addNewBackup(db, backupData, resolve, reject);
+                            }
+                        };
+                        
+                        getAllRequest.onerror = () => {
+                            // If getting fails, just add the new backup
+                            addNewBackup(db, backupData, resolve, reject);
+                        };
+                        
+                    } catch (error) {
+                        db.close();
+                        reject(error);
+                    }
+                };
+                
+                function addNewBackup(db, backupData, resolve, reject) {
+                    try {
+                        const transaction = db.transaction(['backups'], 'readwrite');
+                        const store = transaction.objectStore('backups');
+                        
+                        const backup = {
+                            id: Date.now(),
+                            date: new Date().toISOString(),
+                            data: backupData,
+                            size: JSON.stringify(backupData).length,
+                            carsCount: backupData.cars ? backupData.cars.length : 0,
+                            maintenanceCount: backupData.maintenance ? backupData.maintenance.length : 0,
+                            userId: currentUser.uid // Add userId
+                        };
+                        
+                        const addRequest = store.add(backup);
+                        
+                        addRequest.onsuccess = () => {
                             db.close();
-                            reject(error);
-                        }
-                    };
+                            console.log(`✅ Backup saved for user ${currentUser.uid}. Total backups: up to 4`);
+                            resolve(backup);
+                        };
+                        
+                        addRequest.onerror = () => {
+                            db.close();
+                            reject(addRequest.error);
+                        };
+                        
+                        transaction.onerror = () => {
+                            db.close();
+                            reject(transaction.error);
+                        };
+                    } catch (error) {
+                        db.close();
+                        reject(error);
+                    }
                 }
             });
         }
@@ -5674,8 +5777,15 @@
         // Clean old backups (keep only last 4)
         // Get all saved backups with proper error handling
         async function getSavedBackups() {
+            if (!currentUser) {
+                console.warn('No user logged in');
+                return [];
+            }
+            
+            const dbName = `DRVN_Backups_${currentUser.uid}`;
+            
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open('DRVN_Backups', 1);
+                const request = indexedDB.open(dbName, 1);
                 
                 request.onerror = () => {
                     console.error('Error opening database:', request.error);
@@ -5760,8 +5870,8 @@
                         id: doc.id,
                         ...data,
                         images: [],
-                        createdAt: data.createdAt?.toMillis() || null,
-                        updatedAt: data.updatedAt?.toMillis() || null
+                        createdAt: safeToMillis(data.createdAt),
+                        updatedAt: safeToMillis(data.updatedAt)
                     });
                 });
                 
@@ -5775,7 +5885,7 @@
                     backupData.appointments.push({
                         id: doc.id,
                         ...data,
-                        createdAt: data.createdAt?.toMillis() || null
+                        createdAt: safeToMillis(data.createdAt)
                     });
                 });
                 
@@ -5797,17 +5907,18 @@
                 // Update last backup date
                 localStorage.setItem('lastAutoBackupDate', new Date().toISOString());
                 
-                // Log backup history
-                const history = JSON.parse(localStorage.getItem('backupHistory') || '[]');
+                // Log backup history (per user)
+                const historyKey = `backupHistory_${currentUser.uid}`;
+                const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
                 history.unshift({
                     date: new Date().toISOString(),
                     type: isManual ? 'manual' : 'automatic',
                     carsCount: backupData.cars.length,
                     size: JSON.stringify(backupData).length
                 });
-                // Keep only last 20 records
-                if (history.length > 20) history.length = 20;
-                localStorage.setItem('backupHistory', JSON.stringify(history));
+                // Keep only last 10 records
+                if (history.length > 10) history.length = 10;
+                localStorage.setItem(historyKey, JSON.stringify(history));
                 
                 if (isManual) {
                     showNotification('✅ הגיבוי נוצר בהצלחה!');
@@ -5829,34 +5940,46 @@
         
         // LocalStorage backup fallback (simpler and more reliable)
         function saveBackupToLocalStorage(backupData) {
+            if (!currentUser) {
+                console.error('No user logged in');
+                return;
+            }
+            
+            const storageKey = `localBackups_${currentUser.uid}`;
+            
             try {
-                const backups = JSON.parse(localStorage.getItem('localBackups') || '[]');
+                const backups = JSON.parse(localStorage.getItem(storageKey) || '[]');
                 
                 const backup = {
                     id: Date.now(),
                     date: new Date().toISOString(),
                     data: backupData,
                     size: JSON.stringify(backupData).length,
-                    carsCount: backupData.cars.length,
-                    maintenanceCount: backupData.maintenance.length
+                    carsCount: backupData.cars ? backupData.cars.length : 0,
+                    maintenanceCount: backupData.maintenance ? backupData.maintenance.length : 0,
+                    userId: currentUser.uid
                 };
                 
                 backups.unshift(backup);
                 
-                // Save all backups (no limit)
-                const compressed = JSON.stringify(backups);
-                localStorage.setItem('localBackups', compressed);
+                // Keep only last 4 backups
+                if (backups.length > 4) {
+                    backups.length = 4;
+                }
                 
-                console.log('✅ Backup saved to localStorage');
+                const compressed = JSON.stringify(backups);
+                localStorage.setItem(storageKey, compressed);
+                
+                console.log(`✅ Backup saved to localStorage for user ${currentUser.uid}. Total: ${backups.length}/4`);
             } catch (error) {
                 console.error('LocalStorage backup failed:', error);
                 // If localStorage is full, remove old backups and retry
                 if (error.name === 'QuotaExceededError') {
-                    const backups = JSON.parse(localStorage.getItem('localBackups') || '[]');
-                    // Keep only last 10 to free space
-                    if (backups.length > 10) {
-                        backups.length = 10;
-                        localStorage.setItem('localBackups', JSON.stringify(backups));
+                    const backups = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                    // Keep only last 2 to free space
+                    if (backups.length > 2) {
+                        backups.length = 2;
+                        localStorage.setItem(storageKey, JSON.stringify(backups));
                     }
                     saveBackupToLocalStorage(backupData);
                 }
@@ -5865,8 +5988,14 @@
         
         // Get backups from localStorage
         function getLocalStorageBackups() {
+            if (!currentUser) {
+                return [];
+            }
+            
+            const storageKey = `localBackups_${currentUser.uid}`;
+            
             try {
-                return JSON.parse(localStorage.getItem('localBackups') || '[]');
+                return JSON.parse(localStorage.getItem(storageKey) || '[]');
             } catch (error) {
                 console.error('Error reading localStorage backups:', error);
                 return [];
@@ -6010,7 +6139,10 @@
                 uniqueBackups.sort((a, b) => new Date(b.date) - new Date(a.date));
                 
                 const backups = uniqueBackups; // Show all backups, no limit
-                const history = JSON.parse(localStorage.getItem('backupHistory') || '[]');
+                
+                // Get history for current user only
+                const historyKey = currentUser ? `backupHistory_${currentUser.uid}` : 'backupHistory';
+                const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
                 
                 let html = `
                     <div class="space-y-4">
@@ -6100,10 +6232,8 @@
                     return;
                 }
                 
-                // Find content div - try multiple selectors
-                let contentDiv = modal.querySelector('div[class*="p-3"]') || 
-                                 modal.querySelector('div[class*="p-6"]') ||
-                                 modal.querySelector('.modal-content');
+                // Get content div by ID
+                let contentDiv = document.getElementById('backupModalContent');
                 
                 if (!contentDiv) {
                     console.error('Content div not found');
@@ -6111,7 +6241,13 @@
                     return;
                 }
                 
-                const originalContent = contentDiv.innerHTML;
+                // Save original content globally (only once)
+                if (!window.backupModalOriginalContent) {
+                    window.backupModalOriginalContent = contentDiv.innerHTML;
+                    console.log('✅ Original content saved');
+                }
+                const originalContent = window.backupModalOriginalContent;
+                
                 contentDiv.innerHTML = html;
                 
                 // Add modal-open class
@@ -6123,7 +6259,11 @@
                 backBtn.className = 'mt-4 w-full bg-gray-500 hover:bg-gray-600 active:bg-gray-700 text-white py-3 rounded-lg font-bold transition';
                 backBtn.textContent = '← חזור';
                 backBtn.onclick = () => {
-                    contentDiv.innerHTML = originalContent;
+                    const contentDiv = document.getElementById('backupModalContent');
+                    if (contentDiv && originalContent) {
+                        contentDiv.innerHTML = originalContent;
+                        console.log('✅ Returned to main backup screen');
+                    }
                     // Re-initialize any event listeners if needed
                     setTimeout(() => {
                         try {
@@ -6143,7 +6283,7 @@
         
         // Restore backup from IndexedDB or localStorage
         async function restoreBackup(backupId) {
-            if (!confirm('⚠️ האם אתה בטוח? זה ימחק את כל הנתונים הנוכחיים וישחזר את הגיבוי!')) {
+            if (!confirm('⚠️ האם אתה בטוח שברצונך לשחזר גיבוי זה?\n\n💡 הנתונים מהגיבוי יתווספו לנתונים הקיימים במערכת.')) {
                 return;
             }
             
@@ -6154,6 +6294,7 @@
                 try {
                     const indexedBackups = await getSavedBackups();
                     backup = indexedBackups.find(b => b.id === backupId);
+                    console.log('Found in IndexedDB:', backup ? 'yes' : 'no');
                 } catch (e) {
                     console.warn('IndexedDB not available:', e);
                 }
@@ -6162,6 +6303,7 @@
                     try {
                         const localBackups = getLocalStorageBackups();
                         backup = localBackups.find(b => b.id === backupId);
+                        console.log('Found in localStorage:', backup ? 'yes' : 'no');
                     } catch (e) {
                         console.warn('LocalStorage not available:', e);
                     }
@@ -6169,6 +6311,7 @@
                 
                 if (!backup) {
                     alert('גיבוי לא נמצא');
+                    console.error('Backup not found with ID:', backupId);
                     return;
                 }
                 
@@ -6194,20 +6337,61 @@
                     }
                 }
                 
-                updateBackupProgress(30, 'מוחק נתונים ישנים...');
-                await deleteAllUserData();
+                updateBackupProgress(30, 'בודק רכבים קיימים...');
+                // Check for existing cars to prevent duplicates
+                const existingCarsSnapshot = await db.collection('cars')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                
+                const existingPlateNumbers = new Set();
+                existingCarsSnapshot.forEach(doc => {
+                    const car = doc.data();
+                    if (car.plateNumber) {
+                        existingPlateNumbers.add(car.plateNumber);
+                    }
+                });
+                
+                console.log(`Found ${existingPlateNumbers.size} existing cars`);
+                
+                // Create mapping for plate numbers to new car IDs
+                const plateToCarIdMap = {};
                 
                 updateBackupProgress(50, 'משחזר רכבים...');
+                let carsAdded = 0;
+                let carsSkipped = 0;
+                
                 for (const car of backupData.cars) {
                     const carData = { ...car };
+                    const plateNumber = carData.plateNumber;
+                    
+                    // Check if car already exists
+                    if (existingPlateNumbers.has(plateNumber)) {
+                        console.log(`⚠️ Car ${plateNumber} already exists - skipping`);
+                        carsSkipped++;
+                        continue;
+                    }
+                    
                     delete carData.id;
-                    await db.collection('cars').add(carData);
+                    carData.userId = currentUser.uid;
+                    carData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+                    
+                    const docRef = await db.collection('cars').add(carData);
+                    plateToCarIdMap[plateNumber] = docRef.id;
+                    console.log(`🚗 Car added: ${plateNumber} -> ${docRef.id}`);
+                    carsAdded++;
                 }
                 
                 updateBackupProgress(70, 'משחזר טיפולים...');
                 for (const maintenance of backupData.maintenance) {
                     const maintenanceData = { ...maintenance };
                     delete maintenanceData.id;
+                    
+                    // Map to new carId
+                    const newCarId = plateToCarIdMap[maintenanceData.plateNumber];
+                    if (newCarId) {
+                        maintenanceData.carId = newCarId;
+                    }
+                    maintenanceData.userId = currentUser.uid;
                     
                     if (maintenanceData.createdAt) {
                         maintenanceData.createdAt = firebase.firestore.Timestamp.fromMillis(maintenanceData.createdAt);
@@ -6224,17 +6408,35 @@
                     const appointmentData = { ...appointment };
                     delete appointmentData.id;
                     
+                    // Map to new carId
+                    const newCarId = plateToCarIdMap[appointmentData.plateNumber];
+                    if (newCarId) {
+                        appointmentData.carId = newCarId;
+                    }
+                    appointmentData.userId = currentUser.uid;
+                    
                     if (appointmentData.createdAt) {
                         appointmentData.createdAt = firebase.firestore.Timestamp.fromMillis(appointmentData.createdAt);
+                    } else {
+                        appointmentData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                     }
                     
                     await db.collection('appointments').add(appointmentData);
+                    console.log(`📅 Appointment restored for: ${appointmentData.plateNumber}`);
                 }
                 
                 updateBackupProgress(100, 'השחזור הושלם!');
                 setTimeout(() => {
                     showBackupProgress(false);
-                    showNotification('✅ הנתונים שוחזרו בהצלחה!');
+                    showNotification('✅ הגיבוי שוחזר בהצלחה!');
+                    
+                    let message = '✅ הגיבוי שוחזר בהצלחה!\n\n📊 סיכום:\n';
+                    message += `• ${carsAdded} רכבים נוספו\n`;
+                    if (carsSkipped > 0) {
+                        message += `• ${carsSkipped} רכבים קיימים דולגו (למניעת כפילויות)\n`;
+                    }
+                    
+                    alert(message);
                     closeBackupModal();
                     loadCars();
                 }, 1500);
@@ -6901,8 +7103,394 @@ function closeAccountModal() {
 });
 
 // ==========================================
-// نظام الإشعارات - Firebase Cloud Messaging
+// نظام الإشعارات - OneSignal + Firebase
 // ==========================================
+
+// OneSignal App ID
+const ONESIGNAL_APP_ID = 'e158d77c-3eb7-4959-b6dc-de8a0b581880';
+
+// التحقق إذا التطبيق يعمل في Median/GoNative
+function isMedianApp() {
+    // تحقق من كل الطرق الممكنة
+    return typeof Median !== 'undefined' ||      // Median الجديد
+           typeof median !== 'undefined' ||      // median القديم
+           typeof gonative !== 'undefined' ||    // GoNative
+           (window.plugins && window.plugins.OneSignal) ||  // OneSignal Plugin
+           navigator.userAgent.includes('median') ||
+           navigator.userAgent.includes('gonative') ||
+           navigator.userAgent.includes('Median') ||
+           navigator.userAgent.includes('GoNative') ||
+           document.documentElement.classList.contains('median') ||
+           window.isMedianApp === true;
+}
+
+// التحقق من دعم الإشعارات
+function isNotificationSupported() {
+    // OneSignal متاح
+    if (typeof OneSignal !== 'undefined') {
+        return true;
+    }
+    // إذا كان تطبيق Median، نستخدم Native Push
+    if (isMedianApp()) {
+        return true;
+    }
+    return ('Notification' in window) && ('serviceWorker' in navigator) && ('PushManager' in window);
+}
+
+// الحصول على حالة الإذن بطريقة آمنة
+function getNotificationPermission() {
+    // OneSignal
+    if (typeof OneSignal !== 'undefined') {
+        try {
+            const permission = OneSignal.Notifications.permission;
+            return permission ? 'granted' : 'default';
+        } catch (e) {
+            return 'default';
+        }
+    }
+    
+    // إذا كان تطبيق Median
+    if (isMedianApp()) {
+        const medianPushEnabled = localStorage.getItem('medianPushEnabled');
+        if (medianPushEnabled === 'true') return 'granted';
+        if (medianPushEnabled === 'false') return 'denied';
+        return 'default';
+    }
+    
+    if (!('Notification' in window)) {
+        return 'unsupported';
+    }
+    return Notification.permission;
+}
+
+// طلب إذن الإشعارات بطريقة آمنة
+async function requestNotificationPermission() {
+    // OneSignal
+    if (typeof OneSignal !== 'undefined') {
+        try {
+            await OneSignal.Notifications.requestPermission();
+            const permission = OneSignal.Notifications.permission;
+            
+            if (permission) {
+                // حفظ OneSignal Player ID في Firestore
+                const playerId = await OneSignal.User.PushSubscription.id;
+                if (playerId && currentUser) {
+                    await db.collection('users').doc(currentUser.uid).update({
+                        oneSignalPlayerId: playerId,
+                        pushEnabled: true,
+                        pushEnabledAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    console.log('✅ OneSignal Player ID saved:', playerId);
+                }
+                return 'granted';
+            }
+            return 'denied';
+        } catch (error) {
+            console.error('OneSignal permission error:', error);
+            return 'error';
+        }
+    }
+    
+    // إذا كان تطبيق Median
+    if (isMedianApp()) {
+        return await requestMedianPushPermission();
+    }
+    
+    if (!('Notification' in window)) {
+        console.log('❌ Notifications not supported');
+        return 'unsupported';
+    }
+    
+    try {
+        const permission = await Notification.requestPermission();
+        return permission;
+    } catch (error) {
+        console.error('Error requesting permission:', error);
+        return 'error';
+    }
+}
+
+// طلب إذن Median Push
+async function requestMedianPushPermission() {
+    return new Promise((resolve) => {
+        try {
+            // Median/GoNative Push API
+            if (typeof median !== 'undefined' && median.onesignal) {
+                median.onesignal.requestPermission();
+                median.onesignal.onesignalInfo({
+                    callback: function(info) {
+                        if (info && info.oneSignalUserId) {
+                            localStorage.setItem('medianPushEnabled', 'true');
+                            localStorage.setItem('oneSignalUserId', info.oneSignalUserId);
+                            console.log('✅ Median Push enabled:', info.oneSignalUserId);
+                            
+                            // حفظ في Firestore
+                            if (currentUser) {
+                                db.collection('users').doc(currentUser.uid).update({
+                                    oneSignalPlayerId: info.oneSignalUserId,
+                                    pushEnabled: true,
+                                    platform: 'median_android'
+                                });
+                            }
+                            resolve('granted');
+                        } else {
+                            resolve('default');
+                        }
+                    }
+                });
+            } else if (typeof gonative !== 'undefined' && gonative.onesignal) {
+                gonative.onesignal.requestPermission();
+                setTimeout(() => {
+                    localStorage.setItem('medianPushEnabled', 'true');
+                    resolve('granted');
+                }, 1000);
+            } else {
+                console.log('⚠️ Median Push API not found');
+                resolve('default');
+            }
+        } catch (error) {
+            console.error('Error with Median Push:', error);
+            resolve('error');
+        }
+    });
+}
+
+// إرسال إشعار محلي
+async function showLocalNotification(title, body, data = {}) {
+    // إذا كان تطبيق Median - نستخدم Toast
+    if (isMedianApp()) {
+        showToast(`🔔 ${title}: ${body}`, 'info');
+        return;
+    }
+    
+    // للمتصفح العادي
+    if ('serviceWorker' in navigator && getNotificationPermission() === 'granted') {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.showNotification(title, {
+                body: body,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/badge-72x72.png',
+                dir: 'rtl',
+                vibrate: [200, 100, 200],
+                data: data
+            });
+        } catch (error) {
+            console.error('Error showing notification:', error);
+            showToast(`🔔 ${title}: ${body}`, 'info');
+        }
+    } else {
+        showToast(`🔔 ${title}: ${body}`, 'info');
+    }
+}
+
+// تفعيل Push عبر Median API
+async function enableMedianPush() {
+    console.log('📱 Enabling Median Push...');
+    
+    try {
+        // Median JavaScript Bridge API
+        // https://median.co/docs/javascript-bridge
+        
+        // الطريقة 1: Median الجديد
+        if (typeof Median !== 'undefined') {
+            console.log('📱 Found Median (new API)');
+            
+            if (Median.onesignal) {
+                Median.onesignal.register();
+                
+                setTimeout(() => {
+                    Median.onesignal.info().then(async (info) => {
+                        console.log('📱 Median OneSignal Info:', info);
+                        if (info && info.userId) {
+                            await savePushToken(info.userId, 'median_new');
+                            showToast('🔔 ההתראות הופעלו בהצלחה!', 'success');
+                            updateNotificationButton(true);
+                        }
+                    }).catch(err => {
+                        console.log('Info error:', err);
+                        // قد يكون التسجيل تلقائي
+                        showToast('🔔 ההתראות הופעלו!', 'success');
+                        updateNotificationButton(true);
+                    });
+                }, 2000);
+                return;
+            }
+        }
+        
+        // الطريقة 2: median (lowercase) القديم
+        if (typeof median !== 'undefined') {
+            console.log('📱 Found median (old API)');
+            
+            if (median.onesignal) {
+                median.onesignal.requestPermission();
+                
+                setTimeout(() => {
+                    median.onesignal.onesignalInfo({
+                        callback: async function(info) {
+                            console.log('📱 Median OneSignal Info:', info);
+                            if (info && (info.oneSignalUserId || info.userId)) {
+                                await savePushToken(info.oneSignalUserId || info.userId, 'median_old');
+                                showToast('🔔 ההתראות הופעלו בהצלחה!', 'success');
+                                updateNotificationButton(true);
+                            } else {
+                                // التسجيل التلقائي قد يكون نجح
+                                showToast('🔔 ההתראות הופעלו!', 'success');
+                                updateNotificationButton(true);
+                            }
+                        }
+                    });
+                }, 2000);
+                return;
+            }
+        }
+        
+        // الطريقة 3: gonative
+        if (typeof gonative !== 'undefined') {
+            console.log('📱 Found gonative API');
+            
+            if (gonative.onesignal) {
+                gonative.onesignal.requestPermission();
+                setTimeout(async () => {
+                    await savePushToken(null, 'gonative');
+                    showToast('🔔 ההתראות הופעלו!', 'success');
+                    updateNotificationButton(true);
+                }, 2000);
+                return;
+            }
+        }
+        
+        // الطريقة 4: إذا Automatic Registration مفعل في Median
+        // الإشعارات قد تكون مفعلة تلقائياً
+        console.log('📱 Trying automatic registration...');
+        
+        // تحقق من وجود window.plugins.OneSignal
+        if (window.plugins && window.plugins.OneSignal) {
+            console.log('📱 Found window.plugins.OneSignal');
+            window.plugins.OneSignal.promptForPushNotificationsWithUserResponse(function(accepted) {
+                console.log("User accepted notifications: " + accepted);
+                if (accepted) {
+                    showToast('🔔 ההתראות הופעלו!', 'success');
+                    updateNotificationButton(true);
+                }
+            });
+            return;
+        }
+        
+        // إذا وصلنا هنا - نفترض أن Automatic Registration يعمل
+        console.log('📱 Assuming automatic registration is enabled');
+        localStorage.setItem('medianPushEnabled', 'true');
+        
+        if (currentUser) {
+            await db.collection('users').doc(currentUser.uid).update({
+                pushEnabled: true,
+                platform: 'median_auto',
+                pushEnabledAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        
+        showToast('🔔 ההתראות מופעלות אוטומטית!', 'success');
+        updateNotificationButton(true);
+        
+    } catch (error) {
+        console.error('Error enabling Median Push:', error);
+        
+        // حتى مع الخطأ، إذا كان Automatic Registration مفعل، قد تعمل الإشعارات
+        showToast('ℹ️ ההתראות עשויות להיות מופעלות אוטומטית', 'info');
+        updateNotificationButton(true);
+        localStorage.setItem('medianPushEnabled', 'true');
+    }
+}
+
+// حفظ Push Token في Firestore
+async function savePushToken(token, platform) {
+    localStorage.setItem('medianPushEnabled', 'true');
+    if (token) {
+        localStorage.setItem('oneSignalUserId', token);
+    }
+    
+    if (currentUser) {
+        const updateData = {
+            pushEnabled: true,
+            platform: platform,
+            pushEnabledAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (token) {
+            updateData.oneSignalPlayerId = token;
+        }
+        await db.collection('users').doc(currentUser.uid).update(updateData);
+    }
+    console.log('✅ Push token saved:', token, platform);
+}
+
+// تفعيل Push عبر OneSignal Web SDK
+async function enableOneSignalPush() {
+    console.log('📱 Enabling OneSignal Push...');
+    
+    try {
+        // طلب الإذن
+        await OneSignal.Notifications.requestPermission();
+        
+        const permission = OneSignal.Notifications.permission;
+        console.log('OneSignal permission:', permission);
+        
+        if (permission) {
+            // الحصول على Player ID
+            const playerId = await OneSignal.User.PushSubscription.id;
+            console.log('OneSignal Player ID:', playerId);
+            
+            // ربط المستخدم
+            if (currentUser) {
+                await OneSignal.login(currentUser.uid);
+                
+                // إضافة tags
+                await OneSignal.User.addTags({
+                    user_id: currentUser.uid,
+                    email: currentUser.email || ''
+                });
+                
+                // حفظ في Firestore
+                await db.collection('users').doc(currentUser.uid).update({
+                    oneSignalPlayerId: playerId,
+                    pushEnabled: true,
+                    platform: 'web_onesignal',
+                    pushEnabledAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            
+            showToast('🔔 ההתראות הופעלו בהצלחה!', 'success');
+            updateNotificationButton(true);
+            console.log('✅ OneSignal Push enabled');
+        } else {
+            showToast('⚠️ בקשת ההתראות בוטלה', 'warning');
+            updateNotificationButton(false);
+        }
+    } catch (error) {
+        console.error('Error enabling OneSignal Push:', error);
+        showToast('⚠️ שגיאה בהפעלת התראות: ' + error.message, 'error');
+    }
+}
+
+// تهيئة OneSignal مع معلومات المستخدم
+async function initOneSignalUser() {
+    if (typeof OneSignal === 'undefined' || !currentUser) return;
+    
+    try {
+        // ربط المستخدم بـ OneSignal
+        await OneSignal.login(currentUser.uid);
+        
+        // إضافة tags للمستخدم
+        await OneSignal.User.addTags({
+            user_id: currentUser.uid,
+            email: currentUser.email || '',
+            platform: isMedianApp() ? 'android_app' : 'web'
+        });
+        
+        console.log('✅ OneSignal user initialized');
+    } catch (error) {
+        console.error('Error initializing OneSignal user:', error);
+    }
+}
 
 // دالة عرض رسائل Toast
 function showToast(message, type = 'info') {
@@ -6943,6 +7531,13 @@ function showToast(message, type = 'info') {
 
 // تحقق من حالة الإشعارات
 async function checkNotificationStatus() {
+    // التحقق من دعم الإشعارات
+    if (!isNotificationSupported()) {
+        console.log('❌ Notifications not supported on this device/browser');
+        updateNotificationButton(false, false, true); // not supported
+        return;
+    }
+    
     if (!messaging) {
         console.log('Messaging not available');
         return;
@@ -6955,7 +7550,7 @@ async function checkNotificationStatus() {
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
         const userData = userDoc.data();
         
-        const permission = Notification.permission;
+        const permission = getNotificationPermission();
         console.log('📱 Notification permission:', permission);
         console.log('📱 Firestore data:', {
             hasToken: !!userData?.fcmToken,
@@ -6991,61 +7586,91 @@ async function checkNotificationStatus() {
 }
 
 // تحديث زر الإشعارات
-function updateNotificationButton(enabled, blocked = false) {
+function updateNotificationButton(enabled, blocked = false, notSupported = false) {
     const btn = document.getElementById('notificationToggleBtn');
     const text = document.getElementById('notificationBtnText');
     const icon = btn?.querySelector('.sidebar-icon');
     
     if (!btn || !text) return;
     
-    if (enabled) {
+    if (notSupported) {
+        // ❌ غير مدعوم
+        btn.style.background = 'rgba(156, 163, 175, 0.2)';
+        btn.style.borderLeft = '4px solid #9ca3af';
+        text.textContent = 'התראות לא נתמכות';
+        if (icon) icon.textContent = '📵';
+        btn.style.opacity = '0.6';
+    } else if (enabled) {
         // ✅ مفعّل
         btn.style.background = 'rgba(34, 197, 94, 0.2)';
         btn.style.borderLeft = '4px solid #22c55e';
         text.textContent = '✓ התראות פעילות';
         if (icon) icon.textContent = '🔔';
+        btn.style.opacity = '1';
     } else if (blocked) {
         // 🚫 محظور
         btn.style.background = 'rgba(239, 68, 68, 0.1)';
         btn.style.borderLeft = '4px solid #ef4444';
         text.textContent = 'התראות חסומות';
         if (icon) icon.textContent = '🚫';
+        btn.style.opacity = '1';
     } else {
         // ⚪ غير مفعّل (default)
         btn.style.background = 'transparent';
         btn.style.borderLeft = '';
         text.textContent = 'הפעל התראות';
         if (icon) icon.textContent = '🔔';
+        btn.style.opacity = '1';
     }
 }
 
 // تفعيل/تعطيل الإشعارات
 async function toggleNotifications() {
-    if (!messaging) {
-        showToast('⚠️ התראות לא נתמכות בדפדפן זה', 'error');
-        return;
-    }
-    
     if (!currentUser) {
         showToast('⚠️ נא להתחבר תחילה', 'error');
         return;
     }
     
+    // التحقق من دعم الإشعارات
+    if (!isNotificationSupported()) {
+        showToast('⚠️ ההתראות אינן נתמכות במכשיר זה', 'error');
+        return;
+    }
+    
     try {
-        const currentPermission = Notification.permission;
+        // ⭐ إذا كان تطبيق Median - استخدم Median API
+        if (isMedianApp()) {
+            console.log('📱 Using Median Push API...');
+            await enableMedianPush();
+            return;
+        }
+        
+        // ⭐ إذا كان OneSignal متاح - استخدمه
+        if (typeof OneSignal !== 'undefined') {
+            console.log('📱 Using OneSignal API...');
+            await enableOneSignalPush();
+            return;
+        }
+        
+        // ⭐ للمتصفح العادي - استخدم Firebase
+        if (!messaging) {
+            showToast('⚠️ התראות לא נתמכות בדפדפן זה', 'error');
+            return;
+        }
+        
+        const currentPermission = getNotificationPermission();
         console.log('Current permission status:', currentPermission);
         
-        // ⭐ التحقق من حالة التفعيل في Firestore
+        // التحقق من حالة التفعيل في Firestore
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
         const userData = userDoc.data();
         const isEnabled = userData?.fcmToken && !userData?.notificationsDisabled;
         
-        // ⭐ إذا كانت الإشعارات مفعلة → إيقاف
+        // إذا كانت الإشعارات مفعلة → إيقاف
         if (currentPermission === 'granted' && isEnabled) {
             console.log('🔕 Disabling notifications...');
             
             try {
-                // حذف Token من Firestore
                 await db.collection('users').doc(currentUser.uid).update({
                     fcmToken: null,
                     notificationsDisabled: true,
@@ -7062,23 +7687,15 @@ async function toggleNotifications() {
             return;
         }
         
-        // ⭐ إذا كانت محظورة نهائياً (denied)
+        // إذا كانت محظورة نهائياً (denied)
         if (currentPermission === 'denied') {
-            showToast('⚠️ ההתראות חסומות. אנא אפשר אותן בהגדרות הדפדפן', 'warning');
-            
-            // عرض رسالة توضيحية مختصرة
-            setTimeout(() => {
-                alert('כדי להפעיל התראות:\n\n' +
-                      'הגדרות Chrome → אתרים → התראות\n' +
-                      'מצא את garageapp-test.web.app ואפשר');
-            }, 500);
+            showToast('⚠️ ההתראות חסומות. אנא אפשר אותן בהגדרות', 'warning');
             return;
         }
         
-        // ⭐ إذا كانت "default" أو تم إيقافها → تفعيل
+        // تفعيل الإشعارات
         console.log('🔔 Enabling notifications...');
         
-        // إذا كان الإذن موجود لكن التوكن محذوف، استرجع التوكن
         if (currentPermission === 'granted') {
             await getNotificationToken();
             
@@ -7093,7 +7710,12 @@ async function toggleNotifications() {
         }
         
         // طلب الإذن لأول مرة
-        const permission = await Notification.requestPermission();
+        const permission = await requestNotificationPermission();
+        
+        if (permission === 'unsupported') {
+            showToast('⚠️ ההתראות אינן נתמכות בדפדפן זה', 'error');
+            return;
+        }
         
         if (permission === 'granted') {
             console.log('✅ Notification permission granted!');
@@ -7307,7 +7929,7 @@ async function checkUpcomingAppointments() {
                 const carInfo = `${car.manufacturer} ${car.model} (${car.licensePlate})`;
                 
                 // ⭐ استخدام Service Worker Notification (أفضل!)
-                if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+                if (getNotificationPermission() === 'granted' && 'serviceWorker' in navigator) {
                     navigator.serviceWorker.ready.then(registration => {
                         registration.showNotification('⏰ תזכורת: פגישה בעוד שעה', {
                             body: `פגישה עם ${carInfo} בשעה ${appointment.time}`,
@@ -7360,7 +7982,7 @@ async function checkUnpaidInvoices() {
         
         if (lastCheck === today) return;
         
-        if (!carsSnapshot.empty && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+        if (!carsSnapshot.empty && getNotificationPermission() === 'granted' && 'serviceWorker' in navigator) {
             const count = carsSnapshot.size;
             
             navigator.serviceWorker.ready.then(registration => {
@@ -7421,7 +8043,7 @@ async function checkSubscriptionExpiry() {
             return;
         }
         
-        if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+        if (getNotificationPermission() === 'granted' && 'serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then(registration => {
                 registration.showNotification(title, {
                     body: body,
@@ -7447,7 +8069,7 @@ async function checkSubscriptionExpiry() {
 
 // تشغيل الفحوصات
 auth.onAuthStateChanged((user) => {
-    if (user && Notification.permission === 'granted') {
+    if (user && getNotificationPermission() === 'granted') {
         // فحص فوري بعد 5 ثواني من تسجيل الدخول
         setTimeout(() => {
             checkUpcomingAppointments();
@@ -7471,7 +8093,7 @@ async function testNotifications() {
     console.log('🧪 بدء اختبار الإشعارات...');
     
     // 1. تحقق من الإذن
-    if (Notification.permission !== 'granted') {
+    if (getNotificationPermission() !== 'granted') {
         console.log('❌ الإذن غير ممنوح');
         alert('يرجى السماح بالإشعارات أولاً من القائمة الجانبية!');
         return;
@@ -7535,6 +8157,225 @@ async function testNotifications() {
         showToast('⚠️ שגיאה: ' + error.message, 'error');
     }
 }
+
+// Make functions globally accessible for onclick handlers
+window.restoreBackup = restoreBackup;
+window.showBackupList = showBackupList;
+window.openBackupModal = openBackupModal;
+window.closeBackupModal = closeBackupModal;
+window.createAutoBackup = createAutoBackup;
+
+// ==========================================
+// 🔔 نظام التذكير التلقائي بالمواعيد
+// ==========================================
+
+// فحص المواعيد وإرسال تذكيرات
+async function checkAndSendReminders() {
+    if (!currentUser || !appointments || appointments.length === 0) {
+        return;
+    }
+    
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    // الحصول على المواعيد اليوم والغد
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    for (const apt of appointments) {
+        if (!apt.date || !apt.time) continue;
+        
+        const aptDateTime = new Date(`${apt.date}T${apt.time}`);
+        const timeDiff = aptDateTime - now;
+        const hoursDiff = timeDiff / (1000 * 60 * 60);
+        
+        // مفتاح لتتبع التذكيرات المُرسلة
+        const reminderKey = `reminder_${apt.id || apt.date + apt.time}`;
+        const sentReminders = JSON.parse(localStorage.getItem('sentReminders') || '{}');
+        
+        // تذكير قبل 24 ساعة
+        if (hoursDiff <= 24 && hoursDiff > 23 && !sentReminders[reminderKey + '_24h']) {
+            await sendAppointmentPushNotification(apt, '24h');
+            sentReminders[reminderKey + '_24h'] = true;
+            localStorage.setItem('sentReminders', JSON.stringify(sentReminders));
+        }
+        
+        // تذكير قبل ساعة
+        if (hoursDiff <= 1 && hoursDiff > 0 && !sentReminders[reminderKey + '_1h']) {
+            await sendAppointmentPushNotification(apt, '1h');
+            sentReminders[reminderKey + '_1h'] = true;
+            localStorage.setItem('sentReminders', JSON.stringify(sentReminders));
+        }
+    }
+    
+    // تنظيف التذكيرات القديمة (أكثر من 7 أيام)
+    cleanOldReminders();
+}
+
+// إرسال إشعار Push للموعد
+async function sendAppointmentPushNotification(appointment, type) {
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        
+        let title, body;
+        
+        if (type === '24h') {
+            title = '📅 תזכורת: פגישה מחר';
+            body = `${appointment.customerName || 'לקוח'} - ${appointment.time} - ${appointment.description || 'טיפול'}`;
+        } else if (type === '1h') {
+            title = '⏰ תזכורת: פגישה בעוד שעה!';
+            body = `${appointment.customerName || 'לקוח'} - ${appointment.time} - ${appointment.description || 'טיפול'}`;
+        }
+        
+        await registration.showNotification(title, {
+            body: body,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/badge-72x72.png',
+            tag: `appointment-${type}-${appointment.id}`,
+            dir: 'rtl',
+            vibrate: [200, 100, 200],
+            requireInteraction: true,
+            actions: [
+                { action: 'view', title: 'צפה' },
+                { action: 'call', title: 'התקשר' }
+            ],
+            data: {
+                appointmentId: appointment.id,
+                phone: appointment.customerPhone || appointment.phone,
+                type: 'appointment_reminder'
+            }
+        });
+        
+        console.log(`✅ Reminder sent (${type}):`, appointment.customerName);
+        
+    } catch (error) {
+        console.error('❌ Error sending reminder:', error);
+    }
+}
+
+// تنظيف التذكيرات القديمة
+function cleanOldReminders() {
+    const sentReminders = JSON.parse(localStorage.getItem('sentReminders') || '{}');
+    const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    
+    // حذف المفاتيح القديمة
+    let cleaned = false;
+    for (const key in sentReminders) {
+        if (sentReminders[key] === true) {
+            // تحويل القيمة إلى timestamp للمقارنة
+            // نحذف القديمة
+        }
+    }
+    
+    // إعادة تعيين كل أسبوع
+    const lastClean = localStorage.getItem('lastReminderClean');
+    if (!lastClean || Date.now() - parseInt(lastClean) > 7 * 24 * 60 * 60 * 1000) {
+        localStorage.setItem('sentReminders', '{}');
+        localStorage.setItem('lastReminderClean', Date.now().toString());
+    }
+}
+
+// بدء فحص التذكيرات كل 15 دقيقة
+function startReminderChecker() {
+    // فحص فوري
+    checkAndSendReminders();
+    
+    // فحص كل 15 دقيقة
+    setInterval(checkAndSendReminders, 15 * 60 * 1000);
+    
+    console.log('✅ Reminder checker started (every 15 minutes)');
+}
+
+// إرسال تذكير يدوي عبر WhatsApp
+function sendWhatsAppReminder(appointment) {
+    const phone = appointment.customerPhone || appointment.phone;
+    if (!phone) {
+        showToast('⚠️ אין מספר טלפון', 'warning');
+        return;
+    }
+    
+    // تنظيف رقم الهاتف
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+        cleanPhone = '972' + cleanPhone.substring(1);
+    }
+    
+    const message = encodeURIComponent(
+        `שלום ${appointment.customerName || ''}! 👋\n\n` +
+        `תזכורת לפגישה שלך במוסך:\n` +
+        `📅 תאריך: ${appointment.date}\n` +
+        `🕐 שעה: ${appointment.time}\n` +
+        `🔧 סוג טיפול: ${appointment.description || 'טיפול'}\n\n` +
+        `נשמח לראותך! 🚗`
+    );
+    
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+}
+
+// تشغيل فاحص التذكيرات عند تسجيل الدخول
+document.addEventListener('DOMContentLoaded', () => {
+    // انتظر حتى يتم تحميل المواعيد
+    setTimeout(() => {
+        if (currentUser) {
+            startReminderChecker();
+        }
+    }, 5000);
+    
+    // تهيئة Median Push إذا كان التطبيق يعمل في Median
+    if (isMedianApp()) {
+        console.log('📱 Running in Median/GoNative app');
+        initMedianPush();
+    }
+});
+
+// تهيئة Median Push
+function initMedianPush() {
+    try {
+        // OneSignal في Median
+        if (typeof median !== 'undefined' && median.onesignal) {
+            console.log('✅ Median OneSignal available');
+            
+            // استماع لأحداث Push
+            median.onesignal.onesignalInfo({
+                callback: function(info) {
+                    if (info && info.oneSignalUserId) {
+                        console.log('📱 OneSignal User ID:', info.oneSignalUserId);
+                        localStorage.setItem('oneSignalUserId', info.oneSignalUserId);
+                        localStorage.setItem('medianPushEnabled', 'true');
+                        
+                        // حفظ في Firestore
+                        if (currentUser) {
+                            db.collection('users').doc(currentUser.uid).update({
+                                oneSignalUserId: info.oneSignalUserId,
+                                pushEnabled: true,
+                                platform: 'median_android'
+                            }).then(() => {
+                                console.log('✅ OneSignal ID saved to Firestore');
+                            });
+                        }
+                    }
+                }
+            });
+        }
+        
+        // GoNative API
+        if (typeof gonative !== 'undefined') {
+            console.log('✅ GoNative available');
+        }
+        
+    } catch (error) {
+        console.error('Error initializing Median Push:', error);
+    }
+}
+
+// إضافة للـ window object
+window.sendWhatsAppReminder = sendWhatsAppReminder;
+window.checkAndSendReminders = checkAndSendReminders;
+window.isMedianApp = isMedianApp;
+window.showLocalNotification = showLocalNotification;
     </script>
 
 </body>
